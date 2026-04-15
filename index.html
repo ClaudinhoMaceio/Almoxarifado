@@ -352,6 +352,12 @@
                         <input id="cfg-primary-color" type="color" class="w-full h-12 p-2 border rounded-xl">
                         <button type="submit" class="md:col-span-2 bg-blue-600 text-white py-3 rounded-xl font-bold">Salvar Configurações</button>
                     </form>
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                        <p class="text-xs text-slate-500 mb-3">Acesso rápido à pasta do Google Drive onde fica o arquivo <b>database.json</b>.</p>
+                        <button type="button" onclick="logic.openDriveFolder()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700">
+                            Abrir pasta do JSON no Google Drive
+                        </button>
+                    </div>
                 </div>
                 <div id="audit-section" class="bg-white rounded-3xl shadow-sm overflow-hidden">
                     <div class="p-6 border-b border-slate-50">
@@ -371,11 +377,36 @@
 
     <script>
         const APP_DB_PATH = "almoxarifado/database.json";
+        const DRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1dQ47OF8nmOMPnBGRE1IeTSZ-WR4lo-DG?usp=drive_link";
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJv-6IvCJipFrVlzzUz3tWTHtUw0b3lnXFsv2wFt5M4Gs42kvEuDHjKpi7Y7py5Hne2g/exec";
         const STORAGE_KEY = "sanegestao_db";
         const SESSION_KEY = "session_user";
         const IS_FILE_PROTOCOL = window.location.protocol === "file:";
         let xlsxLoaderPromise = null;
+
+        function readSessionUser() {
+            const fromSession = sessionStorage.getItem(SESSION_KEY);
+            if (fromSession) return fromSession;
+            // Compatibilidade com sessões antigas gravadas em localStorage
+            const legacy = localStorage.getItem(SESSION_KEY);
+            if (legacy) {
+                sessionStorage.setItem(SESSION_KEY, legacy);
+                localStorage.removeItem(SESSION_KEY);
+                return legacy;
+            }
+            return null;
+        }
+
+        function writeSessionUser(userObj) {
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(userObj));
+            // Garante isolamento entre abas/dispositivos
+            localStorage.removeItem(SESSION_KEY);
+        }
+
+        function clearSessionUser() {
+            sessionStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(SESSION_KEY);
+        }
 
         function enableManifestWhenAllowed() {
             if (IS_FILE_PROTOCOL) return;
@@ -707,12 +738,29 @@
             isReady: false,
             lastError: "",
             storageMode: "warehouse",
+            deployWarningShown: false,
+            normalizeBackendError(message) {
+                const msg = String(message || "");
+                if (msg.includes("ROOT_FOLDER_ID is not defined") || msg.includes("MAIN_DB_FILENAME is not defined")) {
+                    return "O Apps Script publicado está desatualizado. Publique uma nova versão da implantação Web App com o Código.gs atualizado.";
+                }
+                return msg;
+            },
+            warnDeployIfNeeded(message) {
+                const msg = String(message || "");
+                const shouldWarn = msg.includes("ROOT_FOLDER_ID is not defined") || msg.includes("MAIN_DB_FILENAME is not defined");
+                if (!shouldWarn || this.deployWarningShown) return;
+                this.deployWarningShown = true;
+                alert("A sincronização com o Google Drive está usando uma versão antiga do Apps Script.\n\nAção necessária:\n1) Abrir Apps Script\n2) Implantar nova versão do Web App\n3) Atualizar URL /exec no sistema se necessário.");
+            },
             isConfigured() {
                 if (IS_FILE_PROTOCOL) return false;
                 return APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("COLE_AQUI_");
             },
             setError(message) {
-                this.lastError = message || "Erro desconhecido de sincronização.";
+                const normalized = this.normalizeBackendError(message);
+                this.lastError = normalized || "Erro desconhecido de sincronização.";
+                this.warnDeployIfNeeded(message);
             },
             clearError() {
                 this.lastError = "";
@@ -730,25 +778,40 @@
                     throw new Error("Resposta inválida do Web App (não é JSON).");
                 }
             },
-            withTimeout(promise, timeoutMs = 7000) {
+            withTimeout(promise, timeoutMs = 15000) {
                 return Promise.race([
                     promise,
                     new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite de conexão com o aplicativo web")), timeoutMs))
                 ]);
             },
+            async sleep(ms) {
+                return new Promise((resolve) => setTimeout(resolve, ms));
+            },
+            async requestWithRetry(requestFn, attempts = 3) {
+                let lastError = null;
+                for (let i = 0; i < attempts; i++) {
+                    try {
+                        return await requestFn();
+                    } catch (err) {
+                        lastError = err;
+                        if (i < attempts - 1) await this.sleep(600 * (i + 1));
+                    }
+                }
+                throw lastError || new Error("Falha ao comunicar com aplicativo web.");
+            },
             async post(payload) {
-                const response = await this.withTimeout(fetch(APPS_SCRIPT_URL, {
+                const response = await this.requestWithRetry(() => this.withTimeout(fetch(APPS_SCRIPT_URL, {
                     method: "POST",
                     // text/plain evita preflight CORS desnecessário no Apps Script
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify(payload)
-                }));
+                })));
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return this.parseResponse(response);
             },
             async get(action, warehouseId) {
                 const url = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}&warehouseId=${encodeURIComponent(warehouseId)}`;
-                const response = await this.withTimeout(fetch(url));
+                const response = await this.requestWithRetry(() => this.withTimeout(fetch(url)));
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 return this.parseResponse(response);
             },
@@ -856,7 +919,7 @@
                             this.isReady = true;
                             this.clearError();
                             ui.updateCloudStatus("drive");
-                            return;
+                            return true;
                         } catch (mainErr) {
                             // fallback automático para compatibilidade com scripts sem ações "main"
                             this.storageMode = "warehouse";
@@ -877,11 +940,13 @@
                     this.isReady = true;
                     this.clearError();
                     ui.updateCloudStatus("drive");
+                    return true;
                 } catch (err) {
                     this.isReady = false;
                     this.setError(err.message);
                     ui.updateCloudStatus("local");
                     console.error("Erro ao enviar para o aplicativo web:", err);
+                    return false;
                 }
             },
             async pullAll(warehouses) {
@@ -938,19 +1003,24 @@
                 unitCatalog: defaultUnitCatalog()
             }),
             isSyncing: false,
+            hasPendingCloudSync: false,
             async save() {
                 this.state = normalizeState(this.state);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
                 ui.setLastSync("local");
+                this.hasPendingCloudSync = true;
                 if (!driveSync.isConfigured() || !navigator.onLine) return;
                 if (this.isSyncing) return;
                 this.isSyncing = true;
                 try {
                     const remote = await driveSync.pullAll(this.state.warehouses);
                     if (remote) this.state = mergeStatesPreferLatest(this.state, remote);
-                    await driveSync.pushAll(this.state);
+                    const pushed = await driveSync.pushAll(this.state);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
-                    if (driveSync.isReady) ui.setLastSync("drive");
+                    if (driveSync.isReady && pushed) {
+                        ui.setLastSync("drive");
+                        this.hasPendingCloudSync = false;
+                    }
                 } finally {
                     this.isSyncing = false;
                 }
@@ -966,6 +1036,7 @@
                     this.state = normalizeState(driveData);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
                     ui.setLastSync("drive");
+                    this.hasPendingCloudSync = false;
                 }
             },
             async refreshFromCloud() {
@@ -978,6 +1049,13 @@
                     this.state = mergeStatesPreferLatest(this.state, remote);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
                     ui.setLastSync(driveSync.isReady ? "drive" : "local");
+                    if (driveSync.isReady && this.hasPendingCloudSync) {
+                        const pushed = await driveSync.pushAll(this.state);
+                        if (pushed) {
+                            this.hasPendingCloudSync = false;
+                            ui.setLastSync("drive");
+                        }
+                    }
                     if (auth.currentUser) {
                         auth.refreshCurrentUser();
                         ui.renderAll();
@@ -1005,6 +1083,9 @@
 
         const auth = {
             currentUser: null,
+            normalizeUsername(value) {
+                return String(value || "").trim().toLowerCase();
+            },
             hasPermission(permission) {
                 if (!this.currentUser) return false;
                 if (this.currentUser.role === "admin") return true;
@@ -1012,17 +1093,25 @@
             },
             refreshCurrentUser() {
                 if (!this.currentUser) return;
-                const fresh = db.state.users.find((u) => u.user === this.currentUser.user);
+                const currentUserKey = this.normalizeUsername(this.currentUser.user);
+                const fresh = db.state.users.find((u) => this.normalizeUsername(u.user) === currentUserKey);
                 if (fresh) {
                     this.currentUser = fresh;
-                    localStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
+                    writeSessionUser(fresh);
                 }
             },
             login(u, p) {
-                const found = db.state.users.find((x) => x.user === u && x.pass === p);
+                db.state = normalizeState(db.state);
+                const usernameKey = this.normalizeUsername(u);
+                const pass = String(p || "");
+                let found = db.state.users.find((x) => this.normalizeUsername(x.user) === usernameKey && String(x.pass || "") === pass);
+                if (!found && !db.state.users.length) {
+                    db.state = normalizeState(db.state);
+                    found = db.state.users.find((x) => this.normalizeUsername(x.user) === usernameKey && String(x.pass || "") === pass);
+                }
                 if (found) {
                     this.currentUser = found;
-                    localStorage.setItem(SESSION_KEY, JSON.stringify(found));
+                    writeSessionUser(found);
                     db.addAuditLog("login", { user: found.user, warehouseId: found.warehouseId });
                     db.save();
                     ui.init();
@@ -1033,18 +1122,19 @@
             logout() {
                 db.addAuditLog("logout", { user: this.currentUser?.user || "desconhecido" });
                 db.save().finally(() => {
-                    localStorage.removeItem(SESSION_KEY);
+                    clearSessionUser();
                     location.reload();
                 });
             },
             check() {
-                const saved = localStorage.getItem(SESSION_KEY);
+                const saved = readSessionUser();
                 if (!saved) return false;
                 const fromSession = JSON.parse(saved);
-                const found = db.state.users.find((u) => u.user === fromSession.user);
+                const sessionUserKey = this.normalizeUsername(fromSession.user);
+                const found = db.state.users.find((u) => this.normalizeUsername(u.user) === sessionUserKey);
                 if (!found) return false;
                 this.currentUser = found;
-                localStorage.setItem(SESSION_KEY, JSON.stringify(found));
+                writeSessionUser(found);
                 ui.init();
                 return true;
             }
@@ -2240,6 +2330,10 @@
                 await db.save();
                 ui.renderAll();
             },
+            openDriveFolder() {
+                if (!this.must("canManageSettings", "Somente administrador pode abrir a pasta de configuração.")) return;
+                window.open(DRIVE_FOLDER_URL, "_blank", "noopener,noreferrer");
+            },
             async saveSettings(e) {
                 e.preventDefault();
                 if (!this.must("canManageSettings", "Sem permissão para alterar configurações.")) return;
@@ -2355,9 +2449,11 @@
 
                 document.getElementById("login-form").onsubmit = (e) => {
                     e.preventDefault();
-                    const u = document.getElementById("user").value;
+                    const u = document.getElementById("user").value.trim();
                     const p = document.getElementById("pass").value;
-                    if (!auth.login(u, p)) alert("Acesso inválido!");
+                    if (!auth.login(u, p)) {
+                        alert("Acesso inválido.\n\nVerifique usuário/senha.\nNo primeiro acesso use:\nUsuário: Claudinho\nSenha: Bobyemel01");
+                    }
                 };
             } catch (err) {
                 console.error("Erro no bootstrap do app:", err);
