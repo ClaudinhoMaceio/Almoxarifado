@@ -1,0 +1,2370 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0284c7">
+    <title>SaneGestão Pro - Controle de Almoxarifado</title>
+    <link rel="stylesheet" href="./tailwind.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        :root {
+            --primary: #0284c7;
+            --dark: #0f172a;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --line: #e2e8f0;
+            --shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.08);
+            --shadow-strong: 0 20px 40px rgba(15, 23, 42, 0.12);
+        }
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #1e293b;
+            background:
+                radial-gradient(circle at top right, rgba(14, 165, 233, 0.10), transparent 40%),
+                radial-gradient(circle at top left, rgba(14, 116, 144, 0.08), transparent 45%),
+                linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+        }
+        .nav-active { background-color: var(--primary) !important; color: white !important; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .offline-mode { border-top: 4px solid #ef4444; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade { animation: fadeIn 0.3s ease-out forwards; }
+
+        /* Modernização visual sem alterar lógica */
+        #main-app aside {
+            background: linear-gradient(180deg, #0f172a 0%, #111827 40%, #0f172a 100%);
+            border-right: 1px solid rgba(148, 163, 184, 0.12);
+        }
+        #main-app main { position: relative; }
+        #main-app main::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 40%);
+        }
+        .bg-white {
+            background: var(--surface) !important;
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow-soft);
+        }
+        .rounded-3xl { border-radius: 1.25rem !important; }
+        .rounded-2xl { border-radius: 1rem !important; }
+        .shadow-sm, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: var(--shadow-soft) !important; }
+        .shadow-2xl { box-shadow: var(--shadow-strong) !important; }
+        button {
+            transition: transform 0.16s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+        }
+        button:hover { transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        input, select, textarea {
+            border-color: #cbd5e1 !important;
+            background-color: #fff !important;
+            transition: border-color .18s ease, box-shadow .18s ease;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+            outline: none;
+        }
+        table thead tr {
+            background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%) !important;
+        }
+        #tab-dash .grid > div h3 {
+            letter-spacing: -0.02em;
+        }
+        #dash-alerts-box {
+            background: linear-gradient(180deg, #fffef8 0%, #ffffff 100%);
+            border: 1px solid #fcd34d;
+        }
+        #modal {
+            backdrop-filter: blur(8px);
+            background: rgba(15, 23, 42, 0.55);
+        }
+        #modal-content .p-8 {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        }
+        @media (max-width: 1024px) {
+            #main-app aside { border-right: none; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
+            button:hover { transform: none; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="loader" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-4 font-bold text-blue-600 tracking-widest">SANEGESTÃO</p>
+    </div>
+
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center p-4 z-50">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md animate-fade">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-black text-blue-600">SANE<span class="text-slate-800">GESTAO</span></h1>
+                <p class="text-slate-400 text-sm">Controle de Materiais e Equipamentos</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <input type="text" id="user" placeholder="Usuário" required class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="pass" placeholder="Senha" required class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all">ENTRAR NO SISTEMA</button>
+            </form>
+            <p class="text-center text-xs text-slate-400 mt-6">Versão 1.1.0 - Drive + PWA Offline</p>
+            <button id="btn-drive-login" type="button" class="w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 rounded-xl transition-all">
+                Conectar Google Drive
+            </button>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <aside class="bg-slate-900 text-white w-full lg:w-64 flex flex-col shrink-0">
+            <div class="p-6 text-center border-b border-slate-800">
+                <h2 id="brand-title" class="font-black text-xl tracking-tighter">SANEGESTÃO</h2>
+                <div id="status-cloud" class="text-[10px] mt-2 flex items-center justify-center gap-1 text-yellow-300">
+                    <span class="w-2 h-2 bg-yellow-300 rounded-full animate-pulse"></span> MODO LOCAL
+                </div>
+            </div>
+
+            <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button data-tab="dash" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400 nav-active">Painel</button>
+                <button data-tab="stock" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Meu Estoque</button>
+                <button data-tab="global" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Busca Geral</button>
+                <button data-tab="requests" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">
+                    Pedidos <span id="badge-orders" class="hidden bg-red-500 text-white text-[10px] px-2 rounded-full">0</span>
+                </button>
+                <button id="nav-reports" data-tab="reports" class="hidden nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Relatórios</button>
+                <div id="admin-menu" class="hidden pt-6 space-y-2">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase px-4 mb-2">Administração</p>
+                    <button data-tab="admin-wh" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Armazéns</button>
+                    <button data-tab="admin-users" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Usuários</button>
+                    <button data-tab="admin-config" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Configurações</button>
+                </div>
+            </nav>
+
+            <div class="p-4 border-t border-slate-800 space-y-2">
+                <button id="btn-force-sync" class="w-full flex items-center justify-center gap-2 px-4 py-3 text-cyan-300 hover:bg-cyan-500/10 rounded-xl transition-all">
+                    Sincronizar agora
+                </button>
+                <button onclick="auth.logout()" class="w-full flex items-center justify-center gap-2 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
+                    Sair
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-4 md:p-10 relative">
+            <header class="flex justify-between items-center mb-8">
+                <div>
+                    <h1 id="view-title" class="text-3xl font-bold text-slate-800">Painel</h1>
+                    <p id="warehouse-label" class="text-slate-500 text-sm">Armazém: Carregando...</p>
+                    <p id="sync-last-update" class="text-[11px] text-emerald-600 font-medium mt-1">Atualização: aguardando sincronização...</p>
+                </div>
+                <div id="user-info" class="text-right">
+                    <p class="font-bold text-slate-800" id="current-user-name">Usuário</p>
+                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest" id="current-user-role">Perfil</span>
+                </div>
+            </header>
+
+            <div id="tab-dash" class="tab-content active animate-fade">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
+                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                        <p class="text-slate-400 text-sm uppercase font-bold">Estoque Baixo</p>
+                        <h3 id="stat-alerts" class="text-4xl font-black text-red-500 mt-2">0</h3>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                        <p class="text-slate-400 text-sm uppercase font-bold">Pedidos Aguardando</p>
+                        <h3 id="stat-orders" class="text-4xl font-black text-blue-500 mt-2">0</h3>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                        <p class="text-slate-400 text-sm uppercase font-bold">Total de Itens</p>
+                        <h3 id="stat-total" class="text-4xl font-black text-slate-800 mt-2">0</h3>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                        <p class="text-slate-400 text-sm uppercase font-bold">Armazéns</p>
+                        <h3 id="stat-wh" class="text-4xl font-black text-indigo-600 mt-2">0</h3>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                        <p class="text-slate-400 text-sm uppercase font-bold">Entregues Hoje</p>
+                        <h3 id="stat-delivered" class="text-4xl font-black text-emerald-600 mt-2">0</h3>
+                    </div>
+                </div>
+
+                <div id="dash-alerts-box" class="bg-amber-50 border border-amber-200 rounded-3xl p-6 mb-8">
+                    <h4 class="font-bold text-amber-900 mb-3">Alertas de Reposição</h4>
+                    <div id="dash-alerts-list" class="space-y-2 text-sm"></div>
+                </div>
+
+            </div>
+
+            <div id="tab-stock" class="tab-content animate-fade">
+                <div class="flex flex-col md:flex-row justify-between gap-4 mb-6">
+                    <input type="text" id="stock-search" placeholder="Filtrar materiais..." class="bg-white border-none px-6 py-3 rounded-2xl shadow-sm w-full md:w-96 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <div class="flex gap-3 flex-wrap">
+                        <button id="btn-open-request" onclick="ui.openModal('submit-request')" class="hidden bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">Finalizar Solicitação (<span id="request-cart-count">0</span>)</button>
+                        <button id="btn-import-stock" onclick="ui.openModal('import-items')" class="hidden bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">Importar Excel</button>
+                        <button id="btn-add-stock" onclick="ui.openModal('add-item')" class="hidden bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">+ Novo Material</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <button id="btn-scope-own-materials" onclick="ui.setStockScope('own-materials')" class="bg-white px-4 py-3 rounded-2xl shadow-sm text-left">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Materiais Próprios</p>
+                        <p class="text-xl font-black text-slate-800" id="count-own-materials">0</p>
+                    </button>
+                    <button id="btn-scope-own-equipment" onclick="ui.setStockScope('own-equipment')" class="bg-white px-4 py-3 rounded-2xl shadow-sm text-left">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Equipamentos Próprios</p>
+                        <p class="text-xl font-black text-slate-800" id="count-own-equipment">0</p>
+                    </button>
+                    <button id="btn-scope-sabesp-materials" onclick="ui.setStockScope('sabesp-materials')" class="bg-white px-4 py-3 rounded-2xl shadow-sm text-left">
+                        <p class="text-xs text-slate-400 uppercase font-bold">Materiais SABESP</p>
+                        <p class="text-xl font-black text-slate-800" id="count-sabesp-materials">0</p>
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <button id="btn-scope-all" onclick="ui.setStockScope('all')" class="text-xs bg-slate-100 text-slate-700 px-3 py-2 rounded-xl font-bold">Mostrar todo estoque</button>
+                </div>
+                <div class="grid md:grid-cols-2 gap-3 mb-4">
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
+                        <p class="text-xs font-bold uppercase text-emerald-700">Campo de Entrada</p>
+                        <p class="text-xs text-emerald-800">Use <b>+ Entrada</b> para reposição e aumento de saldo do material.</p>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-3">
+                        <p class="text-xs font-bold uppercase text-blue-700">Campo de Saída</p>
+                        <p class="text-xs text-blue-800">Use <b>- Saída</b> somente para retirada de material via pedido.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-3xl shadow-sm overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-400 text-[10px] uppercase font-bold tracking-widest">
+                                <th class="px-6 py-4">Código</th>
+                                <th class="px-6 py-4">Item</th>
+                                <th class="px-6 py-4">Categoria</th>
+                                <th class="px-6 py-4">Área</th>
+                                <th class="px-6 py-4">Qtd</th>
+                                <th class="px-6 py-4">Mínimo</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4 text-right">Entrada</th>
+                                <th class="px-6 py-4 text-right">Saída (somente material)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-stock" class="text-sm divide-y divide-slate-50"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-global" class="tab-content animate-fade">
+                <div class="bg-blue-600 p-8 rounded-3xl shadow-xl shadow-blue-100 mb-8">
+                    <h3 class="text-white text-xl font-bold mb-4">Onde encontrar uma peça?</h3>
+                    <input type="text" id="input-global-search" placeholder="Ex: Tubo de PVC 100mm, Joelho, Bomba..." class="w-full px-6 py-4 rounded-2xl outline-none text-lg">
+                </div>
+                <div id="global-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </div>
+
+            <div id="tab-requests" class="tab-content animate-fade space-y-6">
+                <div class="flex justify-end">
+                    <button onclick="logic.downloadOrdersPdf()" class="bg-slate-800 text-white px-5 py-2 rounded-xl text-xs font-bold">Baixar PDF dos Pedidos</button>
+                </div>
+                <div id="list-requests" class="grid gap-4"></div>
+            </div>
+
+            <div id="tab-reports" class="tab-content animate-fade space-y-6">
+                <div class="bg-white rounded-3xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold mb-4">Relatórios (Excel e PDF)</h3>
+                    <div class="grid md:grid-cols-4 gap-4">
+                        <select id="report-type" class="w-full p-3 border rounded-xl">
+                            <option value="requests">Solicitações de materiais</option>
+                            <option value="replenishments">Reposição de estoque</option>
+                        </select>
+                        <select id="report-period" class="w-full p-3 border rounded-xl">
+                            <option value="custom">Período personalizado</option>
+                            <option value="monthly">Mensal</option>
+                            <option value="yearly">Anual</option>
+                        </select>
+                        <input type="month" id="report-ref-month" class="w-full p-3 border rounded-xl">
+                        <input type="number" id="report-ref-year" min="2020" max="2100" placeholder="Ano (ex: 2026)" class="w-full p-3 border rounded-xl">
+                    </div>
+                    <div class="grid md:grid-cols-4 gap-4 mt-4">
+                        <input type="date" id="report-date-from" class="w-full p-3 border rounded-xl">
+                        <input type="date" id="report-date-to" class="w-full p-3 border rounded-xl">
+                        <select id="report-user" class="w-full p-3 border rounded-xl"></select>
+                        <button onclick="logic.refreshReportPreview()" class="bg-blue-600 text-white rounded-xl font-bold">Filtrar</button>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-3">
+                        <button onclick="logic.downloadReportCsv()" class="bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-bold">Exportar Planilha (CSV)</button>
+                        <button onclick="logic.downloadReportPdf()" class="bg-slate-800 text-white px-5 py-2 rounded-xl text-xs font-bold">Exportar PDF</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-3xl shadow-sm overflow-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <tr>
+                                <th class="px-4 py-3">Data</th>
+                                <th class="px-4 py-3">Usuário</th>
+                                <th class="px-4 py-3">Assinatura</th>
+                                <th class="px-4 py-3">Solicitação</th>
+                                <th class="px-4 py-3">Item</th>
+                                <th class="px-4 py-3">Qtd</th>
+                                <th class="px-4 py-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-preview" class="text-sm divide-y divide-slate-50"></tbody>
+                    </table>
+                </div>
+                <div id="report-summary" class="bg-white rounded-3xl shadow-sm p-6 text-sm text-slate-600"></div>
+            </div>
+
+            <div id="tab-admin-wh" class="tab-content animate-fade">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">Gerenciar Almoxarifados</h3>
+                    <button onclick="ui.openModal('add-wh')" class="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold">+ Novo Armazém</button>
+                </div>
+                <div id="list-admin-wh" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+            </div>
+
+            <div id="tab-admin-users" class="tab-content animate-fade">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">Equipe e Permissões</h3>
+                    <button onclick="ui.openModal('add-user')" class="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold">+ Novo Usuário</button>
+                </div>
+                <div class="bg-white rounded-3xl shadow-sm overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <tr>
+                                <th class="px-6 py-4">Colaborador</th>
+                                <th class="px-6 py-4">Usuário</th>
+                                <th class="px-6 py-4">Acesso</th>
+                                <th class="px-6 py-4">Localização</th>
+                                <th class="px-6 py-4 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-users" class="text-sm divide-y divide-slate-50"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-admin-config" class="tab-content animate-fade">
+                <div class="bg-white rounded-3xl shadow-sm p-6 space-y-4 mb-6">
+                    <h3 class="text-xl font-bold">Configurações Gerais</h3>
+                    <form onsubmit="logic.saveSettings(event)" class="grid md:grid-cols-2 gap-4">
+                        <input id="cfg-system-name" type="text" placeholder="Nome do sistema" class="w-full p-3 border rounded-xl">
+                        <input id="cfg-primary-color" type="color" class="w-full h-12 p-2 border rounded-xl">
+                        <button type="submit" class="md:col-span-2 bg-blue-600 text-white py-3 rounded-xl font-bold">Salvar Configurações</button>
+                    </form>
+                </div>
+                <div id="audit-section" class="bg-white rounded-3xl shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-50">
+                        <h4 class="font-bold">Histórico de Movimentações (Audit Log)</h4>
+                    </div>
+                    <div id="history-list" class="divide-y divide-slate-50"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-fade">
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const APP_DB_PATH = "almoxarifado/database.json";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJv-6IvCJipFrVlzzUz3tWTHtUw0b3lnXFsv2wFt5M4Gs42kvEuDHjKpi7Y7py5Hne2g/exec";
+        const STORAGE_KEY = "sanegestao_db";
+        const SESSION_KEY = "session_user";
+        const IS_FILE_PROTOCOL = window.location.protocol === "file:";
+        let xlsxLoaderPromise = null;
+
+        function enableManifestWhenAllowed() {
+            if (IS_FILE_PROTOCOL) return;
+            const link = document.createElement("link");
+            link.rel = "manifest";
+            link.href = "./manifest.webmanifest";
+            document.head.appendChild(link);
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement("script");
+                script.src = src;
+                script.async = true;
+                script.onload = () => resolve(true);
+                script.onerror = () => reject(new Error(`Falha ao carregar script: ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        async function ensureXlsxLibrary() {
+            if (window.XLSX) return true;
+            if (xlsxLoaderPromise) return xlsxLoaderPromise;
+            const cdnList = [
+                "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+                "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+            ];
+            xlsxLoaderPromise = (async () => {
+                for (const cdn of cdnList) {
+                    try {
+                        await loadScript(cdn);
+                        if (window.XLSX) return true;
+                    } catch (err) {
+                        console.warn("Biblioteca XLSX indisponível neste endpoint:", cdn);
+                    }
+                }
+                return false;
+            })();
+            return xlsxLoaderPromise;
+        }
+
+        function parseCsvText(csvText) {
+            const lines = String(csvText || "")
+                .replace(/\r\n/g, "\n")
+                .replace(/\r/g, "\n")
+                .split("\n")
+                .filter((line) => line.trim().length > 0);
+            if (!lines.length) return [];
+            const splitRow = (line) => {
+                if (line.includes(";")) return line.split(";").map((c) => c.trim().replace(/^"|"$/g, ""));
+                return line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+            };
+            const headers = splitRow(lines[0]);
+            return lines.slice(1).map((line) => {
+                const values = splitRow(line);
+                const row = {};
+                headers.forEach((h, idx) => {
+                    row[h] = values[idx] || "";
+                });
+                return row;
+            });
+        }
+
+        function normalizeHeaderToken(value) {
+            return String(value || "")
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/\./g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+
+        function rowsFromXlsxSmart(workbook) {
+            const sheetName = workbook.SheetNames[0];
+            const ws = workbook.Sheets[sheetName];
+            const matrix = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1, raw: false });
+            if (!matrix.length) return [];
+
+            let headerRowIndex = 0;
+            for (let i = 0; i < Math.min(matrix.length, 15); i++) {
+                const tokens = (matrix[i] || []).map(normalizeHeaderToken);
+                const hasMaterial = tokens.some((t) => t.includes("material"));
+                const hasDescription = tokens.some((t) => t.includes("texto breve material") || t.includes("descricao") || t.includes("descricao material"));
+                const hasUnit = tokens.some((t) => t === "umb" || t.includes("unidade"));
+                if (hasMaterial && (hasDescription || hasUnit)) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            const headers = (matrix[headerRowIndex] || []).map((h, idx) => {
+                const normalized = normalizeHeaderToken(h);
+                return normalized || `coluna_${idx + 1}`;
+            });
+            const rows = [];
+            for (let i = headerRowIndex + 1; i < matrix.length; i++) {
+                const rowArr = matrix[i] || [];
+                if (!rowArr.some((cell) => String(cell || "").trim() !== "")) continue;
+                const rowObj = {};
+                headers.forEach((h, idx) => {
+                    rowObj[h] = String(rowArr[idx] ?? "").trim();
+                });
+                rows.push(rowObj);
+            }
+            return rows;
+        }
+
+        function uid(prefix) {
+            return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 9999)}`;
+        }
+
+        function defaultUnitCatalog() {
+            return ["UN", "M", "M2", "M3", "KG", "G", "L", "ML", "CX", "PC", "RL", "SC", "PAR", "JG", "KIT", "PCA", "CONCHA", "PA"];
+        }
+
+        function formatStatusPt(status) {
+            const map = {
+                pending: "PENDENTE",
+                ready: "SEPARADO",
+                delivered: "ENTREGUE"
+            };
+            return map[status] || String(status || "").toUpperCase();
+        }
+
+        function formatRolePt(role) {
+            const map = {
+                admin: "Administrador",
+                almoxarife: "Almoxarife",
+                usuario: "Usuário"
+            };
+            return map[role] || role;
+        }
+
+        function formatPermissionLabelPt(permissionKey) {
+            const map = {
+                canManageStock: "Gerenciar estoque",
+                canAddEntry: "Permitir entrada de material",
+                canManageOrders: "Gerenciar pedidos",
+                canManageUsers: "Gerenciar usuários",
+                canManageWarehouses: "Gerenciar armazéns",
+                canManageSettings: "Gerenciar configurações",
+                canRequestItems: "Solicitar materiais",
+                canViewDashboard: "Visualizar painel"
+            };
+            return map[permissionKey] || permissionKey;
+        }
+
+        function formatAuditActionPt(action) {
+            const map = {
+                login: "Login no sistema",
+                logout: "Saída do sistema",
+                item_created: "Material cadastrado",
+                warehouse_created: "Armazém cadastrado",
+                warehouse_deleted: "Armazém excluído",
+                user_created: "Usuário cadastrado",
+                user_deleted: "Usuário excluído",
+                user_permissions_updated: "Permissões atualizadas",
+                order_requested: "Solicitação criada",
+                order_separation_checked: "Marcação de separação",
+                order_delivered: "Solicitação entregue",
+                order_status_changed: "Status da solicitação alterado",
+                settings_updated: "Configurações atualizadas",
+                stock_replenished: "Reposição de estoque",
+                stock_imported_excel: "Importação de materiais por Excel"
+            };
+            return map[action] || action;
+        }
+
+        function nowIso() {
+            return new Date().toISOString();
+        }
+
+        function getRowTimestamp(row) {
+            const raw = row?.updatedAt || row?.date || row?.createdAt || 0;
+            const ts = new Date(raw).getTime();
+            return Number.isFinite(ts) ? ts : 0;
+        }
+
+        function mergeCollection(localArr, remoteArr, keyField) {
+            const map = new Map();
+            (remoteArr || []).forEach((row) => {
+                if (row?.[keyField]) map.set(row[keyField], row);
+            });
+            (localArr || []).forEach((row) => {
+                const key = row?.[keyField];
+                if (!key) return;
+                if (!map.has(key)) {
+                    map.set(key, row);
+                    return;
+                }
+                const current = map.get(key);
+                map.set(key, getRowTimestamp(row) >= getRowTimestamp(current) ? row : current);
+            });
+            return Array.from(map.values());
+        }
+
+        function mergeStatesPreferLatest(localState, remoteState) {
+            const local = normalizeState(localState);
+            const remote = normalizeState(remoteState);
+            return normalizeState({
+                settings: { ...remote.settings, ...local.settings },
+                unitCatalog: [...new Set([...(remote.unitCatalog || []), ...(local.unitCatalog || [])])],
+                users: mergeCollection(local.users, remote.users, "user"),
+                warehouses: mergeCollection(local.warehouses, remote.warehouses, "id"),
+                items: mergeCollection(local.items, remote.items, "id"),
+                orders: mergeCollection(local.orders, remote.orders, "id"),
+                logs: mergeCollection(local.logs, remote.logs, "id"),
+                replenishments: mergeCollection(local.replenishments, remote.replenishments, "id")
+            });
+        }
+
+        function defaultPermissions(role) {
+            if (role === "admin") {
+                return {
+                    canManageStock: true,
+                    canAddEntry: true,
+                    canManageOrders: true,
+                    canManageUsers: true,
+                    canManageWarehouses: true,
+                    canManageSettings: true,
+                    canRequestItems: true,
+                    canViewDashboard: true
+                };
+            }
+            if (role === "almoxarife") {
+                return {
+                    canManageStock: true,
+                    canAddEntry: false,
+                    canManageOrders: true,
+                    canManageUsers: false,
+                    canManageWarehouses: false,
+                    canManageSettings: false,
+                    canRequestItems: true,
+                    canViewDashboard: true
+                };
+            }
+            return {
+                canManageStock: false,
+                canAddEntry: false,
+                canManageOrders: false,
+                canManageUsers: false,
+                canManageWarehouses: false,
+                canManageSettings: false,
+                canRequestItems: true,
+                canViewDashboard: false
+            };
+        }
+
+        function normalizeState(rawState) {
+            const state = rawState || {};
+            state.users = Array.isArray(state.users) ? state.users : [];
+            state.warehouses = Array.isArray(state.warehouses) ? state.warehouses : [];
+            state.items = Array.isArray(state.items) ? state.items : [];
+            state.orders = Array.isArray(state.orders) ? state.orders : [];
+            state.logs = Array.isArray(state.logs) ? state.logs : [];
+            state.replenishments = Array.isArray(state.replenishments) ? state.replenishments : [];
+            state.settings = state.settings || { systemName: "SANEGESTÃO", primaryColor: "#0284c7" };
+            state.unitCatalog = Array.isArray(state.unitCatalog) ? state.unitCatalog : defaultUnitCatalog();
+
+            if (!state.warehouses.length) {
+                state.warehouses.push({ id: "wh_1", name: "Armazém Principal", city: "Itatiba", phone: "11988887777" });
+            }
+            if (!state.users.length) {
+                state.users.push({
+                    name: "Administrador",
+                    user: "Claudinho",
+                    pass: "Bobyemel01",
+                    role: "admin",
+                    warehouseId: "all",
+                    permissions: defaultPermissions("admin")
+                });
+            }
+
+            state.users = state.users.map((u) => ({
+                ...u,
+                permissions: { ...defaultPermissions(u.role), ...(u.permissions || {}) }
+            }));
+            state.items = state.items.map((i) => ({ ...i, unit: i.unit || "UN" }));
+            state.items = state.items.map((i) => ({ ...i, area: i.area || "PROPRIO" }));
+            state.items = state.items.map((i) => ({ ...i, code: i.code || "" }));
+            state.orders = state.orders.map((o) => {
+                if (Array.isArray(o.lines)) {
+                    return {
+                        ...o,
+                        status: o.status || "pending",
+                        requestDate: o.requestDate || o.date || nowIso(),
+                        requesterSignature: o.requesterSignature || o.userName || "",
+                        lines: o.lines.map((l) => ({
+                            ...l,
+                            qtyRequested: Number(l.qtyRequested || 1),
+                            unit: l.unit || "UN",
+                            separated: !!l.separated
+                        }))
+                    };
+                }
+                // Compatibilidade com formato antigo (1 item por pedido)
+                return {
+                    id: o.id || uid("req"),
+                    requesterUserId: o.userId || "desconhecido",
+                    requesterName: o.userName || "Solicitante",
+                    warehouseId: o.warehouseId || "wh_1",
+                    status: o.status || "pending",
+                    date: o.date || nowIso(),
+                    requestDate: o.requestDate || o.date || nowIso(),
+                    requesterSignature: o.requesterSignature || o.userName || "",
+                    updatedAt: o.updatedAt || o.date || nowIso(),
+                    lines: [{
+                        lineId: uid("line"),
+                        itemId: o.itemId,
+                        itemName: o.itemName || "Item",
+                        qtyRequested: Number(o.qtyRequested || 1),
+                        unit: o.unit || "UN",
+                        separated: !!o.separated
+                    }]
+                };
+            });
+            state.replenishments = state.replenishments.map((r) => ({
+                ...r,
+                qty: Number(r.qty || 0),
+                unit: r.unit || "UN",
+                date: r.date || nowIso()
+            }));
+            state.unitCatalog = [...new Set(state.unitCatalog.map((u) => String(u || "").toUpperCase()).filter(Boolean))];
+            return state;
+        }
+
+        const driveSync = {
+            isReady: false,
+            lastError: "",
+            storageMode: "warehouse",
+            isConfigured() {
+                if (IS_FILE_PROTOCOL) return false;
+                return APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("COLE_AQUI_");
+            },
+            setError(message) {
+                this.lastError = message || "Erro desconhecido de sincronização.";
+            },
+            clearError() {
+                this.lastError = "";
+            },
+            async parseResponse(response) {
+                const contentType = (response.headers.get("content-type") || "").toLowerCase();
+                const text = await response.text();
+                const looksLikeHtml = text.includes("<!DOCTYPE html") || text.includes("<html") || text.toLowerCase().includes("sign in");
+                if (looksLikeHtml || contentType.includes("text/html")) {
+                    throw new Error("Aplicativo web retornou página HTML/login. Publique o Apps Script como aplicativo web com acesso correto e use a URL /exec.");
+                }
+                try {
+                    return JSON.parse(text);
+                } catch (err) {
+                    throw new Error("Resposta inválida do Web App (não é JSON).");
+                }
+            },
+            withTimeout(promise, timeoutMs = 7000) {
+                return Promise.race([
+                    promise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite de conexão com o aplicativo web")), timeoutMs))
+                ]);
+            },
+            async post(payload) {
+                const response = await this.withTimeout(fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    // text/plain evita preflight CORS desnecessário no Apps Script
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify(payload)
+                }));
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return this.parseResponse(response);
+            },
+            async get(action, warehouseId) {
+                const url = `${APPS_SCRIPT_URL}?action=${encodeURIComponent(action)}&warehouseId=${encodeURIComponent(warehouseId)}`;
+                const response = await this.withTimeout(fetch(url));
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return this.parseResponse(response);
+            },
+            async ensureWarehouseById(warehouseId, warehouseName) {
+                return this.post({ action: "initWarehouse", warehouseId, warehouseName });
+            },
+            async ensureMainDatabase() {
+                return this.post({ action: "initMainDatabase", fileName: "database.json" });
+            },
+            buildWarehousePayload(fullState, warehouse) {
+                return {
+                    meta: {
+                        warehouseId: warehouse.id,
+                        warehouseName: warehouse.name,
+                        source: APP_DB_PATH,
+                        updatedAt: new Date().toISOString()
+                    },
+                    settings: fullState.settings,
+                    unitCatalog: fullState.unitCatalog,
+                    users: fullState.users,
+                    warehouses: [warehouse],
+                    items: fullState.items.filter((i) => i.warehouseId === warehouse.id),
+                    orders: fullState.orders.filter((o) => o.warehouseId === warehouse.id),
+                    replenishments: fullState.replenishments.filter((r) => r.warehouseId === warehouse.id),
+                    logs: fullState.logs.filter((log) => {
+                        const wh = log.details?.warehouseId || log.warehouseId;
+                        return !wh || wh === warehouse.id;
+                    })
+                };
+            },
+            mergeWarehousePayload(target, payload) {
+                const upsert = (arr, row, key = "id") => {
+                    const idx = arr.findIndex((i) => i[key] === row[key]);
+                    if (idx === -1) arr.push(row);
+                    else arr[idx] = { ...arr[idx], ...row };
+                };
+                (payload.users || []).forEach((u) => upsert(target.users, u, "user"));
+                (payload.warehouses || []).forEach((w) => upsert(target.warehouses, w, "id"));
+                (payload.items || []).forEach((it) => upsert(target.items, it, "id"));
+                (payload.orders || []).forEach((od) => upsert(target.orders, od, "id"));
+                (payload.replenishments || []).forEach((rp) => upsert(target.replenishments, rp, "id"));
+                (payload.logs || []).forEach((lg) => upsert(target.logs, lg, "id"));
+                if (payload.settings) target.settings = { ...target.settings, ...payload.settings };
+                if (Array.isArray(payload.unitCatalog)) {
+                    target.unitCatalog = [...new Set([...(target.unitCatalog || []), ...payload.unitCatalog])];
+                }
+            },
+            async init() {
+                if (!this.isConfigured() || !navigator.onLine) {
+                    this.isReady = false;
+                    if (IS_FILE_PROTOCOL) this.setError("Abra o sistema em http://localhost para habilitar sincronização, manifest e service worker.");
+                    if (!navigator.onLine) this.setError("Sem internet: sincronização em modo local.");
+                    ui.updateCloudStatus("local");
+                    return;
+                }
+                try {
+                    this.storageMode = "warehouse";
+                    let initResp = null;
+                    try {
+                        initResp = await this.ensureMainDatabase();
+                        if (initResp?.ok) this.storageMode = "main";
+                    } catch (_) {
+                        initResp = null;
+                    }
+                    if (!initResp?.ok) {
+                        const wh = db.state.warehouses[0];
+                        initResp = await this.ensureWarehouseById(wh.id, wh.name);
+                        this.storageMode = "warehouse";
+                    }
+                    this.isReady = !!initResp?.ok;
+                    if (!this.isReady) this.setError(initResp?.error || "Aplicativo web não confirmou inicialização.");
+                    else this.clearError();
+                    ui.updateCloudStatus(this.isReady ? "drive" : "local");
+                } catch (err) {
+                    this.isReady = false;
+                    this.setError(err.message);
+                    ui.updateCloudStatus("local");
+                    console.error("Falha ao iniciar aplicativo web:", err);
+                }
+            },
+            async requestAuth() {
+                if (!this.isConfigured()) {
+                    if (IS_FILE_PROTOCOL) {
+                        alert("Você abriu o sistema como arquivo local (file://). Inicie um servidor local http://localhost para conectar com o Google Drive.");
+                        return;
+                    }
+                    alert("Configure a URL do aplicativo web em APPS_SCRIPT_URL.");
+                    return;
+                }
+                await this.init();
+                alert(this.isReady ? "Conexão com aplicativo web ativa." : `Não foi possível conectar o aplicativo web.\n\nDetalhe: ${this.lastError}`);
+            },
+            async pushAll(state) {
+                if (!this.isConfigured() || !navigator.onLine) return;
+                try {
+                    if (this.storageMode === "main") {
+                        try {
+                            const ensureMain = await this.ensureMainDatabase();
+                            if (!ensureMain?.ok) throw new Error(ensureMain?.error || "Falha ao inicializar database.json");
+                            const pushMain = await this.post({
+                                action: "pushMainDatabase",
+                                data: state
+                            });
+                            if (!pushMain?.ok) throw new Error(pushMain?.error || "Falha ao salvar database.json");
+                            this.isReady = true;
+                            this.clearError();
+                            ui.updateCloudStatus("drive");
+                            return;
+                        } catch (mainErr) {
+                            // fallback automático para compatibilidade com scripts sem ações "main"
+                            this.storageMode = "warehouse";
+                            console.warn("Fallback para modo por armazém (push):", mainErr.message);
+                        }
+                    }
+                    for (const wh of state.warehouses) {
+                        const ensureResp = await this.ensureWarehouseById(wh.id, wh.name);
+                        if (!ensureResp?.ok) throw new Error(ensureResp?.error || `Falha ao inicializar ${wh.name}`);
+                        const payload = this.buildWarehousePayload(state, wh);
+                        const pushResp = await this.post({
+                            action: "push",
+                            warehouseId: wh.id,
+                            data: payload
+                        });
+                        if (!pushResp?.ok) throw new Error(pushResp?.error || `Falha ao salvar ${wh.name}`);
+                    }
+                    this.isReady = true;
+                    this.clearError();
+                    ui.updateCloudStatus("drive");
+                } catch (err) {
+                    this.isReady = false;
+                    this.setError(err.message);
+                    ui.updateCloudStatus("local");
+                    console.error("Erro ao enviar para o aplicativo web:", err);
+                }
+            },
+            async pullAll(warehouses) {
+                if (!this.isConfigured() || !navigator.onLine) return null;
+                try {
+                    if (this.storageMode === "main") {
+                        try {
+                            const ensureMain = await this.ensureMainDatabase();
+                            if (!ensureMain?.ok) throw new Error(ensureMain?.error || "Falha ao inicializar database.json");
+                            const resultMain = await this.get("pullMainDatabase", "principal");
+                            if (resultMain?.ok && resultMain.data) {
+                                this.isReady = true;
+                                this.clearError();
+                                ui.updateCloudStatus("drive");
+                                return normalizeState(resultMain.data);
+                            }
+                            throw new Error(resultMain?.error || "Falha ao carregar database.json");
+                        } catch (mainErr) {
+                            // fallback automático para compatibilidade com scripts sem ações "main"
+                            this.storageMode = "warehouse";
+                            console.warn("Fallback para modo por armazém (pull):", mainErr.message);
+                        }
+                    }
+                    const list = warehouses?.length ? warehouses : [{ id: "wh_1", name: "Armazém Principal" }];
+                    const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], settings: {} });
+                    for (const wh of list) {
+                        await this.ensureWarehouseById(wh.id, wh.name || wh.id);
+                        const result = await this.get("pull", wh.id);
+                        if (result?.ok && result.data) this.mergeWarehousePayload(merged, result.data);
+                    }
+                    this.isReady = true;
+                    this.clearError();
+                    ui.updateCloudStatus("drive");
+                    return normalizeState(merged);
+                } catch (err) {
+                    this.isReady = false;
+                    this.setError(err.message);
+                    ui.updateCloudStatus("local");
+                    console.error("Erro ao baixar do aplicativo web:", err);
+                    return null;
+                }
+            }
+        };
+
+        const db = {
+            state: normalizeState({
+                users: [{ name: "Administrador", user: "Claudinho", pass: "Bobyemel01", role: "admin", warehouseId: "all", permissions: defaultPermissions("admin") }],
+                warehouses: [{ id: "wh_1", name: "Armazém Itatiba", city: "Itatiba", phone: "11988887777" }],
+                items: [],
+                orders: [],
+                logs: [],
+                replenishments: [],
+                settings: { systemName: "SANEGESTÃO", primaryColor: "#0284c7" },
+                unitCatalog: defaultUnitCatalog()
+            }),
+            isSyncing: false,
+            async save() {
+                this.state = normalizeState(this.state);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+                ui.setLastSync("local");
+                if (!driveSync.isConfigured() || !navigator.onLine) return;
+                if (this.isSyncing) return;
+                this.isSyncing = true;
+                try {
+                    const remote = await driveSync.pullAll(this.state.warehouses);
+                    if (remote) this.state = mergeStatesPreferLatest(this.state, remote);
+                    await driveSync.pushAll(this.state);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+                    if (driveSync.isReady) ui.setLastSync("drive");
+                } finally {
+                    this.isSyncing = false;
+                }
+            },
+            async load() {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    this.state = normalizeState(JSON.parse(saved));
+                    ui.setLastSync("local");
+                }
+                const driveData = await driveSync.pullAll(this.state.warehouses);
+                if (driveData) {
+                    this.state = normalizeState(driveData);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+                    ui.setLastSync("drive");
+                }
+            },
+            async refreshFromCloud() {
+                if (!driveSync.isConfigured() || !navigator.onLine) return;
+                if (this.isSyncing) return;
+                this.isSyncing = true;
+                try {
+                    const remote = await driveSync.pullAll(this.state.warehouses);
+                    if (!remote) return;
+                    this.state = mergeStatesPreferLatest(this.state, remote);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+                    ui.setLastSync(driveSync.isReady ? "drive" : "local");
+                    if (auth.currentUser) {
+                        auth.refreshCurrentUser();
+                        ui.renderAll();
+                    }
+                } finally {
+                    this.isSyncing = false;
+                }
+            },
+            addAuditLog(action, details = {}) {
+                const user = auth.currentUser || { user: "sistema", name: "Sistema", role: "service" };
+                this.state.logs.unshift({
+                    id: uid("log"),
+                    action,
+                    details,
+                    warehouseId: details.warehouseId || null,
+                    user: user.user,
+                    userName: user.name,
+                    role: user.role,
+                    createdAt: nowIso(),
+                    updatedAt: nowIso()
+                });
+                this.state.logs = this.state.logs.slice(0, 500);
+            }
+        };
+
+        const auth = {
+            currentUser: null,
+            hasPermission(permission) {
+                if (!this.currentUser) return false;
+                if (this.currentUser.role === "admin") return true;
+                return !!this.currentUser.permissions?.[permission];
+            },
+            refreshCurrentUser() {
+                if (!this.currentUser) return;
+                const fresh = db.state.users.find((u) => u.user === this.currentUser.user);
+                if (fresh) {
+                    this.currentUser = fresh;
+                    localStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
+                }
+            },
+            login(u, p) {
+                const found = db.state.users.find((x) => x.user === u && x.pass === p);
+                if (found) {
+                    this.currentUser = found;
+                    localStorage.setItem(SESSION_KEY, JSON.stringify(found));
+                    db.addAuditLog("login", { user: found.user, warehouseId: found.warehouseId });
+                    db.save();
+                    ui.init();
+                    return true;
+                }
+                return false;
+            },
+            logout() {
+                db.addAuditLog("logout", { user: this.currentUser?.user || "desconhecido" });
+                db.save().finally(() => {
+                    localStorage.removeItem(SESSION_KEY);
+                    location.reload();
+                });
+            },
+            check() {
+                const saved = localStorage.getItem(SESSION_KEY);
+                if (!saved) return false;
+                const fromSession = JSON.parse(saved);
+                const found = db.state.users.find((u) => u.user === fromSession.user);
+                if (!found) return false;
+                this.currentUser = found;
+                localStorage.setItem(SESSION_KEY, JSON.stringify(found));
+                ui.init();
+                return true;
+            }
+        };
+
+        const ui = {
+            currentTab: "dash",
+            lastSyncAt: null,
+            stockScope: "all",
+            isBasicUser() {
+                return auth.currentUser?.role === "usuario";
+            },
+            getAllowedTabs() {
+                if (this.isBasicUser()) return ["stock", "requests"];
+                const tabs = ["dash", "stock", "global", "requests", "admin-wh", "admin-users", "admin-config"];
+                if (auth.hasPermission("canManageOrders")) tabs.push("reports");
+                return tabs;
+            },
+            isTabAllowed(tab) {
+                return this.getAllowedTabs().includes(tab);
+            },
+            applyRoleVisibility() {
+                const isBasic = this.isBasicUser();
+                const dashBtn = document.querySelector('.nav-btn[data-tab="dash"]');
+                const globalBtn = document.querySelector('.nav-btn[data-tab="global"]');
+                if (dashBtn) dashBtn.classList.toggle("hidden", isBasic);
+                if (globalBtn) globalBtn.classList.toggle("hidden", isBasic);
+                const alertsBox = document.getElementById("dash-alerts-box");
+                if (alertsBox) alertsBox.classList.toggle("hidden", isBasic);
+            },
+            activateTab(tab) {
+                if (!this.isTabAllowed(tab)) return;
+                this.currentTab = tab;
+                document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("nav-active"));
+                const btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
+                if (btn) btn.classList.add("nav-active");
+                document.querySelectorAll(".tab-content").forEach((t) => t.classList.remove("active"));
+                const next = document.getElementById("tab-" + tab);
+                if (next) next.classList.add("active");
+                const title = btn ? btn.innerText.replace(/\s+/g, " ").trim() : "Painel";
+                document.getElementById("view-title").innerText = title;
+            },
+            setLastSync(mode = "local") {
+                this.lastSyncAt = new Date();
+                const el = document.getElementById("sync-last-update");
+                if (!el) return;
+                const hhmmss = this.lastSyncAt.toLocaleTimeString("pt-BR");
+                if (mode === "drive") {
+                    el.className = "text-[11px] text-emerald-600 font-medium mt-1";
+                    el.innerText = `Atualizado agora (Drive) - ${hhmmss}`;
+                } else {
+                    el.className = "text-[11px] text-amber-600 font-medium mt-1";
+                    el.innerText = `Atualizado localmente - ${hhmmss}`;
+                }
+            },
+            updateRequestCartCounter() {
+                const countEl = document.getElementById("request-cart-count");
+                if (!countEl) return;
+                const count = logic.requestCart.length;
+                countEl.innerText = String(count);
+            },
+            setStockScope(scope) {
+                this.stockScope = scope;
+                this.renderStock();
+            },
+            updateStockCounters(items) {
+                const ownMaterials = items.filter((i) => i.area === "PROPRIO" && i.category !== "EQUIPAMENTO").length;
+                const ownEquip = items.filter((i) => i.area === "PROPRIO" && i.category === "EQUIPAMENTO").length;
+                const sabespMaterials = items.filter((i) => i.area === "SABESP").length;
+                const set = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerText = String(val);
+                };
+                set("count-own-materials", ownMaterials);
+                set("count-own-equipment", ownEquip);
+                set("count-sabesp-materials", sabespMaterials);
+            },
+            applySettings() {
+                document.documentElement.style.setProperty("--primary", db.state.settings.primaryColor || "#0284c7");
+                document.getElementById("brand-title").innerText = db.state.settings.systemName || "SANEGESTÃO";
+                document.getElementById("cfg-system-name").value = db.state.settings.systemName || "SANEGESTÃO";
+                document.getElementById("cfg-primary-color").value = db.state.settings.primaryColor || "#0284c7";
+            },
+            init() {
+                document.getElementById("loader").style.opacity = "0";
+                setTimeout(() => {
+                    document.getElementById("loader").style.display = "none";
+                }, 500);
+
+                document.getElementById("login-screen").classList.add("hidden");
+                document.getElementById("main-app").classList.remove("hidden");
+
+                auth.refreshCurrentUser();
+                const user = auth.currentUser;
+                document.getElementById("current-user-name").innerText = user.name;
+                document.getElementById("current-user-role").innerText = formatRolePt(user.role);
+
+                const canAdminMenu = auth.hasPermission("canManageUsers") || auth.hasPermission("canManageWarehouses") || auth.hasPermission("canManageSettings");
+                document.getElementById("admin-menu").classList.toggle("hidden", !canAdminMenu);
+                document.getElementById("btn-add-stock").classList.toggle("hidden", !auth.hasPermission("canManageStock"));
+                document.getElementById("btn-import-stock").classList.toggle("hidden", !auth.hasPermission("canManageStock"));
+                document.getElementById("btn-open-request").classList.toggle("hidden", !auth.hasPermission("canRequestItems"));
+                document.getElementById("nav-reports").classList.toggle("hidden", !auth.hasPermission("canManageOrders"));
+                document.getElementById("audit-section").classList.toggle("hidden", user.role !== "admin");
+                this.applyRoleVisibility();
+                this.updateRequestCartCounter();
+
+                if (user.role === "admin" || user.warehouseId === "all") {
+                    document.getElementById("warehouse-label").innerText = "Visão Global Administrador";
+                } else {
+                    const wh = db.state.warehouses.find((w) => w.id === user.warehouseId);
+                    document.getElementById("warehouse-label").innerText = "Armazém: " + (wh ? wh.name : "Não vinculado");
+                }
+                this.applySettings();
+                this.stockScope = "all";
+                this.renderAll();
+                if (this.isBasicUser()) this.activateTab("stock");
+                else this.currentTab = document.querySelector(".nav-btn.nav-active")?.dataset?.tab || "dash";
+            },
+            updateCloudStatus(mode) {
+                const status = document.getElementById("status-cloud");
+                if (!status) return;
+                if (mode === "drive") {
+                    status.className = "text-[10px] mt-2 flex items-center justify-center gap-1 text-green-400";
+                    status.innerHTML = '<span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> CONECTADO AO DRIVE';
+                } else {
+                    status.className = "text-[10px] mt-2 flex items-center justify-center gap-1 text-yellow-300";
+                    status.innerHTML = '<span class="w-2 h-2 bg-yellow-300 rounded-full animate-pulse"></span> MODO LOCAL';
+                }
+            },
+            openModal(type, payload = null) {
+                const modal = document.getElementById("modal");
+                const content = document.getElementById("modal-content");
+                modal.classList.remove("hidden");
+                modal.classList.add("flex");
+
+                if (type === "add-item") {
+                    if (!auth.hasPermission("canManageStock")) return alert("Você não tem permissão para cadastrar itens.");
+                    const whOptions = db.state.warehouses.map((w) => `<option value="${w.id}">${w.name}</option>`).join("");
+                    const unitOptions = db.state.unitCatalog.map((u) => `<option value="${u}">${u}</option>`).join("");
+                    content.innerHTML = `
+                        <div class="p-8">
+                            <h3 class="text-xl font-bold mb-6">Cadastrar Novo Material</h3>
+                            <form onsubmit="logic.addItem(event)" class="space-y-4">
+                                <input type="text" id="m-code" placeholder="Código do material (opcional, obrigatório para SABESP)" class="w-full p-3 border rounded-xl">
+                                <input type="text" id="m-name" placeholder="Nome do Material" required class="w-full p-3 border rounded-xl">
+                                <select id="m-cat" class="w-full p-3 border rounded-xl">
+                                    <option>MATERIAL</option>
+                                    <option>EQUIPAMENTO</option>
+                                    <option>PEÇA</option>
+                                    <option>EPI</option>
+                                </select>
+                                <select id="m-area" class="w-full p-3 border rounded-xl">
+                                    <option value="PROPRIO">Próprio</option>
+                                    <option value="SABESP">SABESP</option>
+                                </select>
+                                <select id="m-wh" class="w-full p-3 border rounded-xl">${whOptions}</select>
+                                <select id="m-unit" onchange="logic.toggleCustomUnitInput(this.value)" class="w-full p-3 border rounded-xl">
+                                    ${unitOptions}
+                                    <option value="__CUSTOM__">+ Adicionar unidade personalizada</option>
+                                </select>
+                                <input type="text" id="m-unit-custom" placeholder="Ex: TUBO, FARDO, BARRA..." class="hidden w-full p-3 border rounded-xl">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <input type="number" id="m-qty" min="0" placeholder="Qtd Inicial" required class="w-full p-3 border rounded-xl">
+                                    <input type="number" id="m-min" min="0" placeholder="Qtd Mínima" required class="w-full p-3 border rounded-xl">
+                                </div>
+                                <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">SALVAR</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (type === "import-items") {
+                    if (!auth.hasPermission("canManageStock")) return alert("Você não tem permissão para importar materiais.");
+                    const whOptions = db.state.warehouses.map((w) => `<option value="${w.id}">${w.name}</option>`).join("");
+                    content.innerHTML = `
+                        <div class="p-8">
+                            <h3 class="text-xl font-bold mb-2">Importar Materiais por Excel</h3>
+                            <p class="text-xs text-slate-500 mb-6">O sistema identifica automaticamente as colunas mais comuns (código, nome, categoria, quantidade, mínimo, unidade, área e armazém).</p>
+                            <form onsubmit="logic.importItemsFromExcel(event)" class="space-y-4">
+                                <select id="import-wh" class="w-full p-3 border rounded-xl">
+                                    <option value="">Armazém pelo arquivo (se existir)</option>
+                                    ${whOptions}
+                                </select>
+                                <select id="import-default-area" class="w-full p-3 border rounded-xl">
+                                    <option value="PROPRIO">Área padrão: Próprio</option>
+                                    <option value="SABESP">Área padrão: SABESP</option>
+                                </select>
+                                <input id="import-file" type="file" accept=".xlsx,.xls,.csv" required class="w-full p-3 border rounded-xl">
+                                <button type="submit" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold">IMPORTAR MATERIAIS</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (type === "add-wh") {
+                    if (!auth.hasPermission("canManageWarehouses")) return alert("Você não tem permissão para gerenciar armazéns.");
+                    content.innerHTML = `
+                        <div class="p-8">
+                            <h3 class="text-xl font-bold mb-6">Novo Armazém</h3>
+                            <form onsubmit="logic.addWarehouse(event)" class="space-y-4">
+                                <input type="text" id="wh-name" placeholder="Nome do armazém" required class="w-full p-3 border rounded-xl">
+                                <input type="text" id="wh-city" placeholder="Cidade" required class="w-full p-3 border rounded-xl">
+                                <input type="text" id="wh-phone" placeholder="Telefone" class="w-full p-3 border rounded-xl">
+                                <button type="submit" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold">CRIAR ARMAZÉM</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (type === "add-user") {
+                    if (!auth.hasPermission("canManageUsers")) return alert("Você não tem permissão para gerenciar usuários.");
+                    const whOptions = `<option value="all">Todos (Geral)</option>${db.state.warehouses.map((w) => `<option value="${w.id}">${w.name}</option>`).join("")}`;
+                    content.innerHTML = `
+                        <div class="p-8">
+                            <h3 class="text-xl font-bold mb-6">Novo Usuário</h3>
+                            <form onsubmit="logic.addUser(event)" class="space-y-4">
+                                <input type="text" id="u-name" placeholder="Nome completo" required class="w-full p-3 border rounded-xl">
+                                <input type="text" id="u-user" placeholder="Usuário" required class="w-full p-3 border rounded-xl">
+                                <input type="password" id="u-pass" placeholder="Senha" required class="w-full p-3 border rounded-xl">
+                                <select id="u-role" class="w-full p-3 border rounded-xl">
+                                    <option value="almoxarife">Almoxarife</option>
+                                    <option value="usuario">Usuário (somente pedidos)</option>
+                                    <option value="admin">Administrador</option>
+                                </select>
+                                <select id="u-wh" class="w-full p-3 border rounded-xl">${whOptions}</select>
+                                <button type="submit" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold">CRIAR USUÁRIO</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (type === "edit-user") {
+                    if (!auth.hasPermission("canManageUsers")) return alert("Você não tem permissão para gerenciar usuários.");
+                    const user = db.state.users.find((u) => u.user === payload);
+                    if (!user) return;
+                    const p = { ...defaultPermissions(user.role), ...user.permissions };
+                    content.innerHTML = `
+                        <div class="p-8">
+                            <h3 class="text-xl font-bold mb-2">Permissões de ${user.name}</h3>
+                            <p class="text-xs text-slate-400 mb-6">Usuário: ${user.user}</p>
+                            <form onsubmit="logic.updateUserPermissions(event, '${user.user}')" class="space-y-3">
+                                ${["canManageStock","canAddEntry","canManageOrders","canManageUsers","canManageWarehouses","canManageSettings","canRequestItems","canViewDashboard"].map((perm) => `
+                                    <label class="flex items-center gap-3 text-sm">
+                                        <input type="checkbox" id="perm-${perm}" ${p[perm] ? "checked" : ""}>
+                                        <span>${formatPermissionLabelPt(perm)}</span>
+                                    </label>
+                                `).join("")}
+                                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Salvar Permissões</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                }
+
+                if (type === "submit-request") {
+                    if (!auth.hasPermission("canRequestItems")) return alert("Você não tem permissão para solicitar materiais.");
+                    if (!logic.requestCart.length) return alert("Selecione materiais no estoque antes de finalizar a solicitação.");
+                    content.innerHTML = `
+                        <div class="p-8">
+                            <h3 class="text-xl font-bold mb-2">Finalizar Solicitação</h3>
+                            <p class="text-xs text-slate-500 mb-4">Confira os materiais selecionados:</p>
+                            <div class="max-h-48 overflow-auto border rounded-xl p-3 mb-4 space-y-2">
+                                ${logic.requestCart.map((line) => `<div class="text-sm flex justify-between"><span>${line.itemName}</span><b>${line.qtyRequested} ${line.unit}</b></div>`).join("")}
+                            </div>
+                            <form onsubmit="logic.submitSolicitation(event)" class="space-y-4">
+                                <label class="text-sm font-semibold">Data da solicitação</label>
+                                <input type="date" id="req-date" required class="w-full p-3 border rounded-xl" value="${new Date().toISOString().slice(0, 10)}">
+                                <label class="text-sm font-semibold">Assinatura do solicitante</label>
+                                <input type="text" id="req-signature" required placeholder="Nome completo para assinatura" class="w-full p-3 border rounded-xl">
+                                <button type="submit" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">ENVIAR SOLICITAÇÃO</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                    return;
+                }
+            },
+            closeModal() {
+                document.getElementById("modal").classList.add("hidden");
+                document.getElementById("modal").classList.remove("flex");
+            },
+            renderAll() {
+                this.renderStock();
+                this.renderGlobalSearch();
+                this.renderRequests();
+                this.renderAdminUsers();
+                this.renderAdminWarehouses();
+                this.renderReportFilters();
+                if (auth.currentUser?.role === "admin") this.renderHistory();
+                this.updateStats();
+            },
+            renderReportFilters() {
+                const userSelect = document.getElementById("report-user");
+                if (!userSelect) return;
+                const options = ['<option value="">Todos os usuários</option>']
+                    .concat(db.state.users.map((u) => `<option value="${u.user}">${u.name} (${u.user})</option>`));
+                userSelect.innerHTML = options.join("");
+                const monthInput = document.getElementById("report-ref-month");
+                const yearInput = document.getElementById("report-ref-year");
+                if (monthInput && !monthInput.value) monthInput.value = new Date().toISOString().slice(0, 7);
+                if (yearInput && !yearInput.value) yearInput.value = String(new Date().getFullYear());
+                logic.handleReportPeriodChange();
+                this.renderReportPreview([]);
+                this.renderReportSummary([], "Resumo");
+            },
+            renderReportPreview(rows) {
+                const tbody = document.getElementById("report-preview");
+                if (!tbody) return;
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-4 text-slate-400">Nenhum dado para o filtro atual.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = rows.map((r) => `
+                    <tr>
+                        <td class="px-4 py-3">${new Date(r.requestDate).toLocaleDateString("pt-BR")}</td>
+                        <td class="px-4 py-3">${r.requesterName}</td>
+                        <td class="px-4 py-3">${r.requesterSignature || "-"}</td>
+                        <td class="px-4 py-3">${r.requestId}</td>
+                        <td class="px-4 py-3">${r.itemCode ? `[${r.itemCode}] ` : ""}${r.itemName}</td>
+                        <td class="px-4 py-3">${r.qtyRequested} ${r.unit}</td>
+                        <td class="px-4 py-3 uppercase text-xs">${formatStatusPt(r.status)}</td>
+                    </tr>
+                `).join("");
+            },
+            renderReportSummary(summaryRows, title = "Resumo") {
+                const summary = document.getElementById("report-summary");
+                if (!summary) return;
+                if (!summaryRows.length) {
+                    summary.innerHTML = `<p class="text-slate-400">Sem dados para ${title.toLowerCase()}.</p>`;
+                    return;
+                }
+                summary.innerHTML = `
+                    <h4 class="font-bold text-slate-800 mb-4">${title}</h4>
+                    <div class="grid md:grid-cols-2 gap-3">
+                        ${summaryRows.map((row) => `
+                            <div class="border border-slate-100 rounded-xl p-3">
+                                <p class="font-semibold">${row.label}</p>
+                                <p class="text-xs text-slate-500">${row.value}</p>
+                            </div>
+                        `).join("")}
+                    </div>
+                `;
+            },
+            userItemsScope() {
+                return auth.currentUser.role === "admin" || auth.currentUser.warehouseId === "all"
+                    ? db.state.items
+                    : db.state.items.filter((i) => i.warehouseId === auth.currentUser.warehouseId);
+            },
+            userOrdersScope() {
+                if (auth.currentUser.role === "admin") return db.state.orders;
+                if (auth.hasPermission("canManageOrders")) {
+                    return db.state.orders.filter((o) => o.warehouseId === auth.currentUser.warehouseId);
+                }
+                return db.state.orders.filter((o) => o.requesterUserId === auth.currentUser.user);
+            },
+            updateStats() {
+                const items = this.userItemsScope();
+                const pendingOrders = this.userOrdersScope().filter((o) => o.status === "pending").length;
+                const deliveredToday = db.state.orders.filter((o) => o.status === "delivered" && new Date(o.date).toDateString() === new Date().toDateString()).length;
+                const lowItems = items.filter((i) => i.qty <= i.minQty);
+
+                document.getElementById("stat-total").innerText = String(items.length);
+                document.getElementById("stat-alerts").innerText = String(lowItems.length);
+                document.getElementById("stat-orders").innerText = String(pendingOrders);
+                document.getElementById("stat-wh").innerText = String(db.state.warehouses.length);
+                document.getElementById("stat-delivered").innerText = String(deliveredToday);
+
+                const badge = document.getElementById("badge-orders");
+                badge.classList.toggle("hidden", pendingOrders === 0);
+                badge.innerText = String(pendingOrders);
+
+                const alertBox = document.getElementById("dash-alerts-list");
+                if (!lowItems.length) {
+                    alertBox.innerHTML = '<p class="text-emerald-700">Nenhum alerta de estoque baixo no momento.</p>';
+                } else {
+                    alertBox.innerHTML = lowItems.slice(0, 8).map((i) => {
+                        const wh = db.state.warehouses.find((w) => w.id === i.warehouseId);
+                        return `<div class="bg-white border border-amber-200 rounded-xl p-3"><b>${i.name}</b> está abaixo do mínimo (${i.qty}/${i.minQty}) - ${wh ? wh.name : "Não disponível"}</div>`;
+                    }).join("");
+                }
+            },
+            renderStock() {
+                const tbody = document.getElementById("table-stock");
+                const filter = document.getElementById("stock-search").value.trim().toLowerCase();
+                const items = this.userItemsScope();
+                const canRequest = auth.hasPermission("canRequestItems");
+                const canOutputItem = (item) => canRequest && item.category === "MATERIAL";
+                this.updateStockCounters(items);
+                let scoped = items;
+                if (this.stockScope === "own-materials") scoped = items.filter((i) => i.area === "PROPRIO" && i.category !== "EQUIPAMENTO");
+                if (this.stockScope === "own-equipment") scoped = items.filter((i) => i.area === "PROPRIO" && i.category === "EQUIPAMENTO");
+                if (this.stockScope === "sabesp-materials") scoped = items.filter((i) => i.area === "SABESP");
+                const filtered = scoped.filter((i) => i.name.toLowerCase().includes(filter) || i.category.toLowerCase().includes(filter) || String(i.code || "").toLowerCase().includes(filter));
+                tbody.innerHTML = filtered.map((i) => `
+                    <tr>
+                        <td class="px-6 py-4 text-xs font-mono">${i.code || "-"}</td>
+                        <td class="px-6 py-4 font-bold text-slate-700">${i.name}</td>
+                        <td class="px-6 py-4 text-xs">${i.category}</td>
+                        <td class="px-6 py-4 text-xs">${i.area === "SABESP" ? "SABESP" : "PRÓPRIO"}</td>
+                        <td class="px-6 py-4 font-black">${i.qty} ${i.unit || "UN"}</td>
+                        <td class="px-6 py-4 text-slate-400">${i.minQty} ${i.unit || "UN"}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded-full text-[10px] font-bold ${i.qty <= i.minQty ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}">
+                                ${i.qty <= i.minQty ? "BAIXO" : "OK"}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end">
+                                ${auth.hasPermission("canAddEntry")
+                                    ? `<button onclick="logic.promptReplenish('${i.id}')" class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold">+ Entrada</button>`
+                                    : '<span class="text-xs text-slate-400">Sem entrada</span>'}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end items-center gap-2">
+                                ${canRequest
+                                    ? (canOutputItem(i)
+                                        ? `
+                                        <input id="rq-qty-${i.id}" type="number" min="1" max="${i.qty}" value="1" class="w-20 p-1 border rounded-lg text-xs text-right" title="Quantidade de saída">
+                                        <button onclick="logic.addToRequestCart('${i.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-lg text-xs font-bold transition-all">- Saída</button>
+                                    `
+                                        : '<span class="text-xs text-amber-600">Somente MATERIAL</span>')
+                                    : '<span class="text-xs text-slate-400">Sem saída</span>'}
+                            </div>
+                        </td>
+                    </tr>
+                `).join("");
+            },
+            renderGlobalSearch() {
+                const input = document.getElementById("input-global-search");
+                const query = input.value.trim().toLowerCase();
+                const container = document.getElementById("global-results");
+                if (!query) {
+                    container.innerHTML = '<div class="text-slate-400">Digite um termo para buscar nos armazéns.</div>';
+                    return;
+                }
+                const matches = db.state.items.filter((i) => i.name.toLowerCase().includes(query) || i.category.toLowerCase().includes(query) || String(i.code || "").toLowerCase().includes(query));
+                container.innerHTML = matches.map((i) => {
+                    const wh = db.state.warehouses.find((w) => w.id === i.warehouseId);
+                    return `<div class="bg-white p-5 rounded-2xl shadow-sm"><p class="font-bold">${i.name}</p><p class="text-xs text-slate-500">${i.category} • ${i.area === "SABESP" ? "SABESP" : "PRÓPRIO"} • Código: ${i.code || "-"}</p><p class="text-sm mt-2">Qtd: <b>${i.qty} ${i.unit || "UN"}</b></p><p class="text-xs text-slate-400 mt-2">${wh ? wh.name : "Não disponível"} - ${wh?.city || "Sem cidade"}</p></div>`;
+                }).join("") || '<div class="text-slate-400">Nenhum material encontrado.</div>';
+            },
+            renderRequests() {
+                const container = document.getElementById("list-requests");
+                const orders = this.userOrdersScope();
+                const canManageOrders = auth.hasPermission("canManageOrders");
+                if (!canManageOrders) {
+                    container.innerHTML = [...orders].reverse().map((o) => `
+                        <div class="bg-white p-6 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
+                            <div>
+                                <p class="text-[10px] font-bold text-blue-500 uppercase">${formatStatusPt(o.status)}</p>
+                                <h4 class="font-bold text-slate-800">Solicitação #${o.id.slice(-6)}</h4>
+                                <p class="text-xs text-slate-500">Data: ${new Date(o.requestDate || o.date).toLocaleDateString("pt-BR")}</p>
+                                <p class="text-xs text-slate-500">Assinatura: <b>${o.requesterSignature || "-"}</b></p>
+                                <div class="mt-2 text-xs text-slate-600">
+                                    ${o.lines.map((l) => `<div>- ${l.itemName}: ${l.qtyRequested} ${l.unit}</div>`).join("")}
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                ${o.status === "delivered" ? `<button onclick="logic.pdf('${o.id}')" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">PDF</button>` : ""}
+                            </div>
+                        </div>
+                    `).join("");
+                    return;
+                }
+
+                const grouped = {};
+                orders.forEach((o) => {
+                    if (!grouped[o.requesterUserId]) grouped[o.requesterUserId] = { userName: o.requesterName, orders: [] };
+                    grouped[o.requesterUserId].orders.push(o);
+                });
+
+                container.innerHTML = Object.keys(grouped).map((userId) => {
+                    const group = grouped[userId];
+                    const pending = group.orders.filter((o) => o.status !== "delivered").length;
+                    return `
+                        <details class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                            <summary class="cursor-pointer list-none flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold text-slate-800">${group.userName}</p>
+                                    <p class="text-xs text-slate-500">${group.orders.length} pedidos (${pending} em aberto)</p>
+                                </div>
+                                <span class="text-xs bg-slate-100 px-3 py-1 rounded-full">Abrir pedidos</span>
+                            </summary>
+                            <div class="mt-4 space-y-3">
+                                ${group.orders.map((o) => `
+                                    <div class="border rounded-2xl p-4">
+                                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                            <div>
+                                                <p class="text-[10px] font-bold text-blue-500 uppercase">${formatStatusPt(o.status)}</p>
+                                                <p class="font-semibold">Solicitação #${o.id.slice(-6)}</p>
+                                                <p class="text-xs text-slate-500">Data: ${new Date(o.requestDate || o.date).toLocaleDateString("pt-BR")} | Assinatura: ${o.requesterSignature || "-"}</p>
+                                                <div class="mt-2 space-y-1 text-xs">
+                                                    ${o.lines.map((l) => `
+                                                        <label class="flex items-center gap-2 bg-slate-50 p-2 rounded-lg">
+                                                            ${o.status === "pending" ? `<input type="checkbox" ${l.separated ? "checked" : ""} onchange="logic.toggleSeparated('${o.id}', '${l.lineId}', this.checked)">` : ""}
+                                                            <span>${l.itemName} - <b>${l.qtyRequested} ${l.unit}</b></span>
+                                                        </label>
+                                                    `).join("")}
+                                                </div>
+                                            </div>
+                                            <div class="flex flex-wrap gap-2 items-center">
+                                                ${o.status === "pending" ? `<button onclick="logic.updateOrder('${o.id}', 'ready')" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Confirmar Separação</button>` : ""}
+                                                ${o.status === "ready" ? `<button onclick="logic.updateOrder('${o.id}', 'delivered')" class="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Entregar</button>` : ""}
+                                                ${o.status === "delivered" ? `<button onclick="logic.pdf('${o.id}')" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">PDF</button>` : ""}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join("")}
+                            </div>
+                        </details>
+                    `;
+                }).join("") || '<div class="text-slate-400">Nenhum pedido encontrado.</div>';
+            },
+            renderHistory() {
+                const container = document.getElementById("history-list");
+                if (auth.currentUser?.role !== "admin") {
+                    container.innerHTML = "";
+                    return;
+                }
+                const rows = db.state.logs.slice(0, 20);
+                if (!rows.length) {
+                    container.innerHTML = '<div class="p-6 text-slate-400 text-sm">Sem movimentações registradas.</div>';
+                    return;
+                }
+                container.innerHTML = rows.map((log) => `
+                    <div class="p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                            <p class="font-semibold text-slate-800">${formatAuditActionPt(log.action)}</p>
+                            <p class="text-xs text-slate-500">${log.userName} (${log.user})</p>
+                        </div>
+                        <div class="text-xs text-slate-400">${new Date(log.createdAt).toLocaleString("pt-BR")}</div>
+                    </div>
+                `).join("");
+            },
+            renderAdminUsers() {
+                const tbody = document.getElementById("table-users");
+                const canManageUsers = auth.hasPermission("canManageUsers");
+                tbody.innerHTML = db.state.users.map((u) => {
+                    const wh = u.warehouseId === "all"
+                        ? "Todos"
+                        : (db.state.warehouses.find((w) => w.id === u.warehouseId)?.name || "Não disponível");
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 font-semibold">${u.name}</td>
+                            <td class="px-6 py-4">${u.user}</td>
+                            <td class="px-6 py-4 uppercase text-xs">${formatRolePt(u.role)}</td>
+                            <td class="px-6 py-4">${wh}</td>
+                            <td class="px-6 py-4 text-right">
+                                ${canManageUsers ? `<button onclick="ui.openModal('edit-user', '${u.user}')" class="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold">Permissões</button>
+                                <button onclick="logic.deleteUser('${u.user}')" class="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-xs font-bold ml-2">Excluir</button>` : '<span class="text-xs text-slate-400">Sem permissão</span>'}
+                            </td>
+                        </tr>
+                    `;
+                }).join("");
+            },
+            renderAdminWarehouses() {
+                const container = document.getElementById("list-admin-wh");
+                const canManage = auth.hasPermission("canManageWarehouses");
+                container.innerHTML = db.state.warehouses.map((w) => `
+                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                        <p class="text-slate-400 text-xs uppercase">Armazém</p>
+                        <h4 class="font-bold text-slate-800 mt-1">${w.name}</h4>
+                        <p class="text-xs text-slate-500 mt-2">Cidade: ${w.city || "Não informada"}</p>
+                        <p class="text-xs text-slate-500">Telefone: ${w.phone || "Não informado"}</p>
+                        ${canManage ? `<button onclick="logic.deleteWarehouse('${w.id}')" class="mt-3 bg-red-100 text-red-600 px-3 py-1 rounded-lg text-xs font-bold">Excluir armazém</button>` : ""}
+                    </div>
+                `).join("");
+            }
+        };
+
+        const logic = {
+            requestCart: [],
+            must(permission, message) {
+                if (auth.hasPermission(permission)) return true;
+                alert(message || "Você não tem permissão para esta ação.");
+                return false;
+            },
+            addToRequestCart(itemId) {
+                if (!this.must("canRequestItems", "Sem permissão para solicitar materiais.")) return;
+                const item = db.state.items.find((i) => i.id === itemId);
+                if (!item) return;
+                const qtyInput = document.getElementById(`rq-qty-${itemId}`);
+                const qtyRequested = parseInt(qtyInput?.value || "1", 10);
+                if (!Number.isInteger(qtyRequested) || qtyRequested <= 0) {
+                    alert("Informe uma quantidade válida.");
+                    return;
+                }
+                if (qtyRequested > item.qty) {
+                    alert(`Quantidade maior que o saldo disponível (${item.qty}).`);
+                    return;
+                }
+                const existing = this.requestCart.find((l) => l.itemId === item.id);
+                if (existing) {
+                    existing.qtyRequested = qtyRequested;
+                } else {
+                    this.requestCart.push({
+                        lineId: uid("line"),
+                        itemId: item.id,
+                        itemName: item.name,
+                        qtyRequested,
+                        unit: item.unit || "UN",
+                        warehouseId: item.warehouseId,
+                        separated: false
+                    });
+                }
+                ui.updateRequestCartCounter();
+                alert(`Item ${item.name} adicionado/atualizado na solicitação.`);
+            },
+            clearRequestCart() {
+                this.requestCart = [];
+                ui.updateRequestCartCounter();
+            },
+            getReportDateRange() {
+                const period = document.getElementById("report-period")?.value || "custom";
+                if (period === "monthly") {
+                    const refMonth = document.getElementById("report-ref-month")?.value || new Date().toISOString().slice(0, 7);
+                    const [year, month] = refMonth.split("-").map((v) => parseInt(v, 10));
+                    const from = new Date(year, month - 1, 1, 0, 0, 0);
+                    const to = new Date(year, month, 0, 23, 59, 59);
+                    return { fromTs: from.getTime(), toTs: to.getTime() };
+                }
+                if (period === "yearly") {
+                    const y = parseInt(document.getElementById("report-ref-year")?.value || String(new Date().getFullYear()), 10);
+                    const from = new Date(y, 0, 1, 0, 0, 0);
+                    const to = new Date(y, 11, 31, 23, 59, 59);
+                    return { fromTs: from.getTime(), toTs: to.getTime() };
+                }
+                const fromStr = document.getElementById("report-date-from")?.value;
+                const toStr = document.getElementById("report-date-to")?.value;
+                return {
+                    fromTs: fromStr ? new Date(`${fromStr}T00:00:00`).getTime() : null,
+                    toTs: toStr ? new Date(`${toStr}T23:59:59`).getTime() : null
+                };
+            },
+            handleReportPeriodChange() {
+                const period = document.getElementById("report-period")?.value || "custom";
+                const isCustom = period === "custom";
+                const isMonthly = period === "monthly";
+                const isYearly = period === "yearly";
+                const from = document.getElementById("report-date-from");
+                const to = document.getElementById("report-date-to");
+                const month = document.getElementById("report-ref-month");
+                const year = document.getElementById("report-ref-year");
+                if (from) from.disabled = !isCustom;
+                if (to) to.disabled = !isCustom;
+                if (month) month.disabled = !isMonthly;
+                if (year) year.disabled = !isYearly;
+            },
+            getReportRows() {
+                const type = document.getElementById("report-type")?.value || "requests";
+                const userFilter = document.getElementById("report-user")?.value || "";
+                const { fromTs, toTs } = this.getReportDateRange();
+                const rows = [];
+                if (type === "replenishments") {
+                    (db.state.replenishments || []).forEach((rep) => {
+                        const dt = new Date(rep.date || nowIso()).getTime();
+                        if (fromTs !== null && dt < fromTs) return;
+                        if (toTs !== null && dt > toTs) return;
+                        if (userFilter && rep.user !== userFilter) return;
+                        rows.push({
+                            requestId: rep.id,
+                            requestDate: rep.date,
+                            requesterUserId: rep.user,
+                            requesterName: rep.userName || rep.user || "-",
+                            requesterSignature: "-",
+                            itemCode: rep.itemCode || "",
+                            itemName: rep.itemName,
+                            qtyRequested: rep.qty,
+                            unit: rep.unit || "UN",
+                            status: "delivered"
+                        });
+                    });
+                } else {
+                    (db.state.orders || []).forEach((order) => {
+                        const dt = new Date(order.requestDate || order.date || nowIso()).getTime();
+                        if (fromTs !== null && dt < fromTs) return;
+                        if (toTs !== null && dt > toTs) return;
+                        if (userFilter && order.requesterUserId !== userFilter) return;
+                        (order.lines || []).forEach((line) => {
+                            const item = db.state.items.find((it) => it.id === line.itemId);
+                            rows.push({
+                                requestId: order.id,
+                                requestDate: order.requestDate || order.date || nowIso(),
+                                requesterUserId: order.requesterUserId,
+                                requesterName: order.requesterName,
+                                requesterSignature: order.requesterSignature || "",
+                                itemCode: item?.code || "",
+                                itemName: line.itemName,
+                                qtyRequested: line.qtyRequested || 1,
+                                unit: line.unit || "UN",
+                                status: order.status
+                            });
+                        });
+                    });
+                }
+                rows.sort((a, b) => new Date(b.requestDate) - new Date(a.requestDate));
+                return rows;
+            },
+            buildReportSummary(rows) {
+                const type = document.getElementById("report-type")?.value || "requests";
+                const byMaterial = new Map();
+                rows.forEach((r) => {
+                    const key = `${r.itemCode || ""}|${r.itemName}|${r.unit || "UN"}`;
+                    byMaterial.set(key, (byMaterial.get(key) || 0) + Number(r.qtyRequested || 0));
+                });
+                const rowsSummary = Array.from(byMaterial.entries())
+                    .map(([key, total]) => {
+                        const [code, name, unit] = key.split("|");
+                        return {
+                            label: `${code ? `[${code}] ` : ""}${name}`,
+                            value: `Total: ${total} ${unit}`
+                        };
+                    })
+                    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+                ui.renderReportSummary(rowsSummary, type === "replenishments" ? "Resumo de reposições por material" : "Resumo de solicitações por material");
+            },
+            refreshReportPreview() {
+                if (!this.must("canManageOrders", "Sem permissão para relatórios.")) return;
+                const rows = this.getReportRows();
+                ui.renderReportPreview(rows);
+                this.buildReportSummary(rows);
+            },
+            downloadReportCsv() {
+                if (!this.must("canManageOrders", "Sem permissão para exportar relatório.")) return;
+                const rows = this.getReportRows();
+                const header = ["Data", "Usuário", "Assinatura", "Solicitação", "Item", "Quantidade", "Unidade", "Status"];
+                const csvRows = rows.map((r) => [
+                    new Date(r.requestDate).toLocaleDateString("pt-BR"),
+                    r.requesterName,
+                    r.requesterSignature || "",
+                    r.requestId,
+                    `${r.itemCode ? `[${r.itemCode}] ` : ""}${r.itemName}`,
+                    String(r.qtyRequested),
+                    r.unit,
+                    formatStatusPt(r.status)
+                ]);
+                const csv = [header, ...csvRows].map((line) => line.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                const type = document.getElementById("report-type")?.value || "requests";
+                link.download = `relatorio_${type}_${new Date().toISOString().slice(0, 10)}.csv`;
+                link.click();
+                URL.revokeObjectURL(url);
+            },
+            downloadReportPdf() {
+                if (!this.must("canManageOrders", "Sem permissão para exportar relatório.")) return;
+                const rows = this.getReportRows();
+                const type = document.getElementById("report-type")?.value || "requests";
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.setFontSize(14);
+                doc.text(type === "replenishments" ? "Relatório de Reposições - SANEGESTÃO" : "Relatório de Solicitações - SANEGESTÃO", 14, 14);
+                doc.setFontSize(9);
+                let y = 24;
+                rows.forEach((r, idx) => {
+                    if (y > 280) {
+                        doc.addPage();
+                        y = 14;
+                    }
+                    doc.text(
+                        `${idx + 1}. ${new Date(r.requestDate).toLocaleDateString("pt-BR")} | ${r.requesterName} | ${r.itemCode ? `[${r.itemCode}] ` : ""}${r.itemName} | ${r.qtyRequested} ${r.unit} | ${formatStatusPt(r.status)}`,
+                        14,
+                        y
+                    );
+                    y += 6;
+                });
+                if (!rows.length) doc.text("Nenhum dado para os filtros selecionados.", 14, 24);
+                doc.save(`relatorio_${type}_${new Date().toISOString().slice(0, 10)}.pdf`);
+            },
+            downloadOrdersPdf() {
+                const orders = ui.userOrdersScope();
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.setFontSize(14);
+                doc.text("Pedidos / Solicitações", 14, 14);
+                doc.setFontSize(10);
+                let y = 24;
+                orders.forEach((order, idx) => {
+                    if (y > 270) {
+                        doc.addPage();
+                        y = 14;
+                    }
+                    doc.text(`${idx + 1}) ${order.requesterName} | ${new Date(order.requestDate || order.date).toLocaleDateString("pt-BR")} | ${formatStatusPt(order.status)}`, 14, y);
+                    y += 6;
+                    (order.lines || []).forEach((line) => {
+                        if (y > 280) {
+                            doc.addPage();
+                            y = 14;
+                        }
+                        doc.text(`- ${line.itemName}: ${line.qtyRequested} ${line.unit || "UN"}`, 18, y);
+                        y += 6;
+                    });
+                    y += 2;
+                });
+                if (!orders.length) doc.text("Nenhum pedido encontrado.", 14, 24);
+                doc.save(`pedidos_${new Date().toISOString().slice(0, 10)}.pdf`);
+            },
+            toggleCustomUnitInput(value) {
+                const customInput = document.getElementById("m-unit-custom");
+                if (!customInput) return;
+                const show = value === "__CUSTOM__";
+                customInput.classList.toggle("hidden", !show);
+                customInput.required = show;
+                if (!show) customInput.value = "";
+            },
+            async addItem(e) {
+                e.preventDefault();
+                if (!this.must("canManageStock", "Sem permissão para cadastrar materiais.")) return;
+                const whId = document.getElementById("m-wh").value;
+                const selectedUnit = document.getElementById("m-unit").value;
+                let unit = selectedUnit;
+                if (selectedUnit === "__CUSTOM__") {
+                    unit = document.getElementById("m-unit-custom").value.trim().toUpperCase();
+                    if (!unit) {
+                        alert("Informe a unidade personalizada.");
+                        return;
+                    }
+                }
+                const category = document.getElementById("m-cat").value;
+                const area = document.getElementById("m-area").value;
+                const code = document.getElementById("m-code").value.trim();
+                if (area === "SABESP" && category === "EQUIPAMENTO") {
+                    alert("A área SABESP aceita apenas materiais. Equipamentos SABESP não são permitidos.");
+                    return;
+                }
+                if (area === "SABESP" && !code) {
+                    alert("Para itens SABESP, informe o código do material.");
+                    return;
+                }
+                const newItem = {
+                    id: uid("it"),
+                    code,
+                    name: document.getElementById("m-name").value.trim(),
+                    category,
+                    warehouseId: whId,
+                    area,
+                    unit,
+                    qty: parseInt(document.getElementById("m-qty").value, 10),
+                    minQty: parseInt(document.getElementById("m-min").value, 10),
+                    updatedAt: nowIso()
+                };
+                if (!db.state.unitCatalog.includes(unit)) db.state.unitCatalog.push(unit);
+                db.state.items.push(newItem);
+                db.addAuditLog("item_created", { itemId: newItem.id, code, name: newItem.name, qty: newItem.qty, unit, area, warehouseId: whId });
+                await db.save();
+                ui.closeModal();
+                ui.renderAll();
+            },
+            getExcelValue(row, keys, fallback = "") {
+                for (const key of Object.keys(row || {})) {
+                    const normalized = normalizeHeaderToken(key);
+                    if (keys.some((k) => normalized.includes(k))) return row[key];
+                }
+                return fallback;
+            },
+            resolveWarehouseFromRow(row, selectedWarehouseId) {
+                if (selectedWarehouseId) return selectedWarehouseId;
+                const name = String(this.getExcelValue(row, ["armazem", "almoxarifado", "warehouse"], "")).trim().toLowerCase();
+                if (!name) return auth.currentUser?.warehouseId === "all" ? db.state.warehouses[0]?.id : auth.currentUser?.warehouseId;
+                const wh = db.state.warehouses.find((w) => w.name.toLowerCase() === name);
+                return wh?.id || (auth.currentUser?.warehouseId === "all" ? db.state.warehouses[0]?.id : auth.currentUser?.warehouseId);
+            },
+            async importItemsFromExcel(e) {
+                e.preventDefault();
+                if (!this.must("canManageStock", "Sem permissão para importar materiais.")) return;
+                const fileInput = document.getElementById("import-file");
+                const file = fileInput?.files?.[0];
+                if (!file) return alert("Selecione o arquivo Excel.");
+
+                const selectedWarehouseId = document.getElementById("import-wh")?.value || "";
+                const defaultArea = document.getElementById("import-default-area")?.value || "PROPRIO";
+                const fileName = String(file.name || "").toLowerCase();
+                let rows = [];
+                if (fileName.endsWith(".csv")) {
+                    const raw = await file.text();
+                    rows = parseCsvText(raw);
+                } else {
+                    const hasXlsx = await ensureXlsxLibrary();
+                    if (!hasXlsx) {
+                        alert("Sem internet para carregar biblioteca XLSX. Para importar agora, use CSV ou conecte a internet.");
+                        return;
+                    }
+                    const buffer = await file.arrayBuffer();
+                    const workbook = XLSX.read(buffer, { type: "array" });
+                    rows = rowsFromXlsxSmart(workbook);
+                }
+                if (!rows.length) return alert("O arquivo está vazio.");
+
+                let imported = 0;
+                let skipped = 0;
+                rows.forEach((row) => {
+                    const isSabespTemplate = Boolean(
+                        this.getExcelValue(row, ["fornecedor"], "") &&
+                        this.getExcelValue(row, ["material"], "") &&
+                        this.getExcelValue(row, ["texto breve material"], "")
+                    );
+
+                    const code = String(
+                        isSabespTemplate
+                            ? this.getExcelValue(row, ["material"], "")
+                            : this.getExcelValue(row, ["codigo", "cod", "code"], "")
+                    ).trim();
+                    const name = String(
+                        isSabespTemplate
+                            ? this.getExcelValue(row, ["texto breve material"], "")
+                            : this.getExcelValue(row, ["nome", "descricao", "descricao material", "item"], "")
+                    ).trim();
+                    if (!name) {
+                        skipped += 1;
+                        return;
+                    }
+
+                    const categoryRaw = String(this.getExcelValue(row, ["categoria", "tipo", "classificacao"], "MATERIAL")).toUpperCase();
+                    let category = isSabespTemplate
+                        ? "MATERIAL"
+                        : (["MATERIAL", "EQUIPAMENTO", "PEÇA", "EPI"].includes(categoryRaw) ? categoryRaw : "MATERIAL");
+
+                    const unit = String(
+                        this.getExcelValue(
+                            row,
+                            ["umb", "unidade", "und", "um"],
+                            "UN"
+                        )
+                    ).toUpperCase().trim() || "UN";
+
+                    const qty = isSabespTemplate
+                        ? 0
+                        : (Number(this.getExcelValue(row, ["quantidade", "qtd", "saldo", "estoque"], 0)) || 0);
+                    const minQty = Number(this.getExcelValue(row, ["minimo", "min"], 0)) || 0;
+                    const rowAreaRaw = String(this.getExcelValue(row, ["area", "origem"], isSabespTemplate ? "SABESP" : defaultArea)).toUpperCase();
+                    const area = rowAreaRaw.includes("SABESP") ? "SABESP" : "PROPRIO";
+                    if (area === "SABESP" && category === "EQUIPAMENTO") category = "MATERIAL";
+                    if (area === "SABESP" && !code) {
+                        skipped += 1;
+                        return;
+                    }
+                    const warehouseId = this.resolveWarehouseFromRow(row, selectedWarehouseId);
+                    if (!warehouseId) {
+                        skipped += 1;
+                        return;
+                    }
+
+                    const already = db.state.items.find((i) => i.warehouseId === warehouseId && i.name.toLowerCase() === name.toLowerCase() && (i.code || "") === code);
+                    if (already) {
+                        already.qty = Number(already.qty || 0) + qty;
+                        already.minQty = Math.max(Number(already.minQty || 0), minQty);
+                        already.unit = unit;
+                        already.category = category;
+                        already.area = area;
+                        already.updatedAt = nowIso();
+                    } else {
+                        db.state.items.push({
+                            id: uid("it"),
+                            code,
+                            name,
+                            category,
+                            warehouseId,
+                            area,
+                            unit,
+                            qty,
+                            minQty,
+                            updatedAt: nowIso()
+                        });
+                    }
+                    if (!db.state.unitCatalog.includes(unit)) db.state.unitCatalog.push(unit);
+                    imported += 1;
+                });
+
+                db.addAuditLog("stock_imported_excel", {
+                    fileName: file.name,
+                    imported,
+                    skipped,
+                    warehouseId: selectedWarehouseId || "auto"
+                });
+                await db.save();
+                ui.closeModal();
+                ui.renderAll();
+                alert(`Importação concluída.\nItens importados/atualizados: ${imported}\nLinhas ignoradas: ${skipped}`);
+            },
+            async promptReplenish(itemId) {
+                if (!this.must("canAddEntry", "Somente usuários autorizados pelo administrador podem fazer entrada.")) return;
+                const item = db.state.items.find((i) => i.id === itemId);
+                if (!item) return alert("Item não encontrado.");
+                const qtyStr = prompt(`Quantidade para repor em ${item.name}:`, "0");
+                if (qtyStr === null) return;
+                const qty = Number(qtyStr);
+                if (!Number.isFinite(qty) || qty <= 0) return alert("Informe uma quantidade válida maior que zero.");
+                const date = prompt("Data da reposição (AAAA-MM-DD):", new Date().toISOString().slice(0, 10)) || new Date().toISOString().slice(0, 10);
+
+                item.qty = Number(item.qty || 0) + qty;
+                item.updatedAt = nowIso();
+                db.state.replenishments.push({
+                    id: uid("rep"),
+                    itemId: item.id,
+                    itemCode: item.code || "",
+                    itemName: item.name,
+                    warehouseId: item.warehouseId,
+                    qty,
+                    unit: item.unit || "UN",
+                    date: new Date(`${date}T12:00:00`).toISOString(),
+                    user: auth.currentUser?.user || "sistema",
+                    userName: auth.currentUser?.name || "Sistema",
+                    updatedAt: nowIso()
+                });
+                db.addAuditLog("stock_replenished", { itemId: item.id, qty, unit: item.unit, date, warehouseId: item.warehouseId });
+                await db.save();
+                ui.renderAll();
+            },
+            async addWarehouse(e) {
+                e.preventDefault();
+                if (!this.must("canManageWarehouses", "Sem permissão para cadastrar armazém.")) return;
+                const name = document.getElementById("wh-name").value.trim();
+                const city = document.getElementById("wh-city").value.trim();
+                const phone = document.getElementById("wh-phone").value.trim();
+                const wh = { id: uid("wh"), name, city, phone };
+                db.state.warehouses.push(wh);
+                db.addAuditLog("warehouse_created", { warehouseId: wh.id, name: wh.name });
+                await db.save();
+                ui.closeModal();
+                ui.renderAll();
+            },
+            async deleteWarehouse(warehouseId) {
+                if (!this.must("canManageWarehouses", "Sem permissão para excluir armazém.")) return;
+                if (db.state.warehouses.length <= 1) return alert("É necessário manter ao menos um armazém.");
+                const linkedItems = db.state.items.some((i) => i.warehouseId === warehouseId);
+                const linkedUsers = db.state.users.some((u) => u.warehouseId === warehouseId);
+                if (linkedItems || linkedUsers) return alert("Remova itens/usuários vinculados antes de excluir o armazém.");
+                db.state.warehouses = db.state.warehouses.filter((w) => w.id !== warehouseId);
+                db.addAuditLog("warehouse_deleted", { warehouseId });
+                await db.save();
+                ui.renderAll();
+            },
+            async addUser(e) {
+                e.preventDefault();
+                if (!this.must("canManageUsers", "Sem permissão para cadastrar usuários.")) return;
+                const user = document.getElementById("u-user").value.trim();
+                if (db.state.users.some((u) => u.user.toLowerCase() === user.toLowerCase())) return alert("Usuário já existe.");
+                const role = document.getElementById("u-role").value;
+                const newUser = {
+                    name: document.getElementById("u-name").value.trim(),
+                    user,
+                    pass: document.getElementById("u-pass").value,
+                    role,
+                    warehouseId: document.getElementById("u-wh").value,
+                    permissions: defaultPermissions(role),
+                    updatedAt: nowIso()
+                };
+                db.state.users.push(newUser);
+                db.addAuditLog("user_created", { targetUser: newUser.user, warehouseId: newUser.warehouseId });
+                await db.save();
+                ui.closeModal();
+                ui.renderAll();
+            },
+            async updateUserPermissions(e, username) {
+                e.preventDefault();
+                if (!this.must("canManageUsers", "Sem permissão para alterar permissões.")) return;
+                const user = db.state.users.find((u) => u.user === username);
+                if (!user) return;
+                const perms = {};
+                ["canManageStock","canAddEntry","canManageOrders","canManageUsers","canManageWarehouses","canManageSettings","canRequestItems","canViewDashboard"].forEach((perm) => {
+                    perms[perm] = document.getElementById(`perm-${perm}`).checked;
+                });
+                user.permissions = perms;
+                user.updatedAt = nowIso();
+                db.addAuditLog("user_permissions_updated", { targetUser: user.user });
+                await db.save();
+                auth.refreshCurrentUser();
+                ui.closeModal();
+                ui.renderAll();
+            },
+            async deleteUser(username) {
+                if (!this.must("canManageUsers", "Sem permissão para excluir usuários.")) return;
+                const target = db.state.users.find((u) => u.user === username);
+                if (!target) return;
+                const adminCount = db.state.users.filter((u) => u.role === "admin").length;
+                if (target.role === "admin" && adminCount <= 1) return alert("Não é possível excluir o último administrador.");
+                if (target.user === auth.currentUser.user) return alert("Não é possível excluir seu próprio usuário.");
+                db.state.users = db.state.users.filter((u) => u.user !== username);
+                db.addAuditLog("user_deleted", { targetUser: username });
+                await db.save();
+                ui.renderAll();
+            },
+            async submitSolicitation(e) {
+                e.preventDefault();
+                if (!this.must("canRequestItems", "Sem permissão para solicitar materiais.")) return;
+                if (!this.requestCart.length) return alert("Selecione ao menos um material.");
+                const reqDate = document.getElementById("req-date").value;
+                const signature = document.getElementById("req-signature").value.trim();
+                if (!reqDate || !signature) return alert("Informe data e assinatura do solicitante.");
+                try {
+                    const groupedByWarehouse = {};
+                    this.requestCart.forEach((line) => {
+                        if (!groupedByWarehouse[line.warehouseId]) groupedByWarehouse[line.warehouseId] = [];
+                        groupedByWarehouse[line.warehouseId].push({ ...line });
+                    });
+
+                    const requestBatchId = uid("lote");
+                    const createdOrders = [];
+                    Object.keys(groupedByWarehouse).forEach((warehouseId) => {
+                        const order = {
+                            id: uid("req"),
+                            requestBatchId,
+                            requesterUserId: auth.currentUser.user,
+                            requesterName: auth.currentUser.name,
+                            requesterSignature: signature,
+                            warehouseId,
+                            status: "pending",
+                            date: nowIso(),
+                            requestDate: new Date(reqDate).toISOString(),
+                            updatedAt: nowIso(),
+                            lines: groupedByWarehouse[warehouseId]
+                        };
+                        db.state.orders.push(order);
+                        createdOrders.push(order);
+                        db.addAuditLog("order_requested", {
+                            orderId: order.id,
+                            requestBatchId,
+                            requester: order.requesterUserId,
+                            lineCount: order.lines.length,
+                            warehouseId: order.warehouseId
+                        });
+                    });
+                    await db.save();
+                    this.clearRequestCart();
+                    ui.closeModal();
+                    ui.renderAll();
+                    if (createdOrders.length === 1) {
+                        alert("Solicitação enviada com sucesso.");
+                    } else {
+                        alert(`Solicitação enviada com sucesso para ${createdOrders.length} armazéns (lote ${requestBatchId.slice(-6)}).`);
+                    }
+                } catch (err) {
+                    console.error("Erro ao enviar solicitação:", err);
+                    alert(`Não foi possível enviar a solicitação.\n\nDetalhe: ${err.message || "Erro desconhecido"}`);
+                }
+            },
+            async toggleSeparated(orderId, lineId, separated) {
+                if (!this.must("canManageOrders", "Sem permissão para gerenciar pedidos.")) return;
+                const order = db.state.orders.find((o) => o.id === orderId);
+                if (!order || order.status !== "pending") return;
+                const line = (order.lines || []).find((l) => l.lineId === lineId);
+                if (!line) return;
+                line.separated = !!separated;
+                order.updatedAt = nowIso();
+                db.addAuditLog("order_separation_checked", { orderId, lineId, separated: !!separated, warehouseId: order.warehouseId });
+                await db.save();
+                ui.renderRequests();
+            },
+            async updateOrder(id, status) {
+                if (!this.must("canManageOrders", "Sem permissão para gerenciar pedidos.")) return;
+                const order = db.state.orders.find((o) => o.id === id);
+                if (!order) return;
+                const lines = order.lines || [];
+                if (status === "ready" && lines.some((l) => !l.separated)) {
+                    alert("Marque todos os materiais como separados antes de confirmar.");
+                    return;
+                }
+                if (status === "delivered") {
+                    for (const line of lines) {
+                        const item = db.state.items.find((i) => i.id === line.itemId);
+                        const qtyRequested = line.qtyRequested || 1;
+                        if (!item) {
+                            alert(`Item "${line.itemName}" não encontrado no estoque.`);
+                            return;
+                        }
+                        if (item.qty < qtyRequested) {
+                            alert(`Saldo insuficiente para "${line.itemName}". Saldo atual: ${item.qty}. Pedido: ${qtyRequested}.`);
+                            return;
+                        }
+                    }
+                    for (const line of lines) {
+                        const item = db.state.items.find((i) => i.id === line.itemId);
+                        item.qty -= line.qtyRequested;
+                    }
+                    db.addAuditLog("order_delivered", { orderId: id, lineCount: lines.length, warehouseId: order.warehouseId });
+                } else {
+                    db.addAuditLog("order_status_changed", { orderId: id, from: order.status, to: status, warehouseId: order.warehouseId });
+                }
+                order.status = status;
+                order.updatedAt = nowIso();
+                await db.save();
+                ui.renderAll();
+            },
+            async saveSettings(e) {
+                e.preventDefault();
+                if (!this.must("canManageSettings", "Sem permissão para alterar configurações.")) return;
+                db.state.settings.systemName = document.getElementById("cfg-system-name").value.trim() || "SANEGESTÃO";
+                db.state.settings.primaryColor = document.getElementById("cfg-primary-color").value || "#0284c7";
+                db.addAuditLog("settings_updated", {});
+                await db.save();
+                ui.applySettings();
+                alert("Configurações salvas.");
+            },
+            pdf(id) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const order = db.state.orders.find((o) => o.id === id);
+                if (!order) return;
+                doc.text("GUIA DE RETIRADA - SANEGESTÃO", 20, 20);
+                doc.text("Solicitante: " + (order.requesterName || "-"), 20, 35);
+                doc.text("Data da solicitação: " + new Date(order.requestDate || order.date).toLocaleDateString("pt-BR"), 20, 45);
+                doc.text("Assinatura do solicitante: " + (order.requesterSignature || "-"), 20, 55);
+                let y = 70;
+                (order.lines || []).forEach((line, idx) => {
+                    doc.text(`${idx + 1}. ${line.itemName} - ${line.qtyRequested} ${line.unit || "UN"}`, 20, y);
+                    y += 8;
+                });
+                doc.text("Assinatura da retirada: ___________________________", 20, y + 20);
+                doc.save(`pedido_${id}.pdf`);
+            }
+        };
+
+        function bindNav() {
+            document.querySelectorAll(".nav-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const tab = btn.dataset.tab;
+                    if (!ui.isTabAllowed(tab)) return;
+                    ui.activateTab(tab);
+                });
+            });
+        }
+
+        function registerServiceWorker() {
+            const isAllowedProtocol = window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+            if ("serviceWorker" in navigator && isAllowedProtocol) {
+                navigator.serviceWorker.register("./sw.js").catch((err) => {
+                    console.error("Erro ao registrar Service Worker:", err);
+                });
+            } else if ("serviceWorker" in navigator) {
+                console.warn("Service Worker desativado: execute via http://localhost ou https://.");
+            }
+        }
+
+        window.addEventListener("online", () => ui.updateCloudStatus(driveSync.isReady ? "drive" : "local"));
+        window.addEventListener("offline", () => ui.updateCloudStatus("local"));
+
+        function hideLoader() {
+            const loader = document.getElementById("loader");
+            if (!loader) return;
+            loader.style.opacity = "0";
+            setTimeout(() => {
+                loader.style.display = "none";
+            }, 300);
+        }
+
+        let syncTimerId = null;
+        let lastGeneralSyncAt = 0;
+        function startRealtimeSync() {
+            if (syncTimerId) clearInterval(syncTimerId);
+            syncTimerId = setInterval(() => {
+                const now = Date.now();
+                const isRequestsTab = ui.currentTab === "requests";
+                const shouldRun = isRequestsTab || (now - lastGeneralSyncAt >= 15000);
+                if (!shouldRun) return;
+                lastGeneralSyncAt = now;
+                db.refreshFromCloud();
+            }, 5000);
+        }
+
+        window.onload = async () => {
+            try {
+                enableManifestWhenAllowed();
+                bindNav();
+                registerServiceWorker();
+                await driveSync.init();
+                await db.load();
+                auth.check();
+
+                document.getElementById("stock-search").addEventListener("input", () => ui.renderStock());
+                document.getElementById("input-global-search").addEventListener("input", () => ui.renderGlobalSearch());
+                document.getElementById("report-type").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("report-period").addEventListener("change", () => {
+                    logic.handleReportPeriodChange();
+                    logic.refreshReportPreview();
+                });
+                document.getElementById("report-ref-month").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("report-ref-year").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("report-date-from").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("report-date-to").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("report-user").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("btn-force-sync").addEventListener("click", async () => {
+                    await db.save();
+                    if (driveSync.isReady) {
+                        alert("Sincronização executada no Google Drive com sucesso.");
+                    } else {
+                        alert(`Dados salvos apenas no modo local.\n\nMotivo: ${driveSync.lastError || "Aplicativo web indisponível ou sem permissão."}`);
+                    }
+                });
+                document.getElementById("btn-drive-login").addEventListener("click", () => driveSync.requestAuth());
+                window.addEventListener("focus", () => db.refreshFromCloud());
+                document.addEventListener("visibilitychange", () => {
+                    if (!document.hidden) db.refreshFromCloud();
+                });
+                window.addEventListener("online", () => db.refreshFromCloud());
+                startRealtimeSync();
+
+                document.getElementById("login-form").onsubmit = (e) => {
+                    e.preventDefault();
+                    const u = document.getElementById("user").value;
+                    const p = document.getElementById("pass").value;
+                    if (!auth.login(u, p)) alert("Acesso inválido!");
+                };
+            } catch (err) {
+                console.error("Erro no bootstrap do app:", err);
+            } finally {
+                hideLoader();
+            }
+        };
+    </script>
+</body>
+</html>
