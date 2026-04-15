@@ -572,7 +572,8 @@
                 settings_updated: "Configurações atualizadas",
                 stock_replenished: "Reposição de estoque",
                 stock_imported_excel: "Importação de materiais por Excel",
-                item_min_updated: "Estoque mínimo atualizado"
+                item_min_updated: "Estoque mínimo atualizado",
+                order_deleted: "Pedido excluído pelo administrador"
             };
             return map[action] || action;
         }
@@ -1596,6 +1597,7 @@
                 const container = document.getElementById("list-requests");
                 const orders = this.userOrdersScope();
                 const canManageOrders = auth.hasPermission("canManageOrders");
+                const canDeleteOrders = auth.currentUser?.role === "admin";
                 if (!canManageOrders) {
                     container.innerHTML = [...orders].reverse().map((o) => `
                         <div class="bg-white p-6 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
@@ -1655,6 +1657,7 @@
                                                 ${o.status === "pending" ? `<button onclick="logic.updateOrder('${o.id}', 'ready')" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Confirmar Separação</button>` : ""}
                                                 ${o.status === "ready" ? `<button onclick="logic.updateOrder('${o.id}', 'delivered')" class="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Entregar</button>` : ""}
                                                 ${o.status === "delivered" ? `<button onclick="logic.pdf('${o.id}')" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold">PDF</button>` : ""}
+                                                ${canDeleteOrders ? `<button onclick="logic.deleteOrder('${o.id}')" class="bg-red-100 text-red-700 px-4 py-2 rounded-xl text-xs font-bold">Excluir</button>` : ""}
                                             </div>
                                         </div>
                                     </div>
@@ -1723,10 +1726,18 @@
 
         const logic = {
             requestCart: [],
+            submittingRequest: false,
             must(permission, message) {
                 if (auth.hasPermission(permission)) return true;
                 alert(message || "Você não tem permissão para esta ação.");
                 return false;
+            },
+            buildRequestFingerprint(lines, reqDate, signature) {
+                const normalizedLines = [...(lines || [])]
+                    .map((line) => `${line.itemId}|${Number(line.qtyRequested || 0)}`)
+                    .sort()
+                    .join(";");
+                return `${auth.currentUser?.user || ""}|${reqDate}|${String(signature || "").trim().toLowerCase()}|${normalizedLines}`;
             },
             addToRequestCart(itemId) {
                 if (!this.must("canRequestItems", "Sem permissão para solicitar materiais.")) return;
@@ -2258,15 +2269,37 @@
                 e.preventDefault();
                 if (!this.must("canRequestItems", "Sem permissão para solicitar materiais.")) return;
                 if (!this.requestCart.length) return alert("Selecione ao menos um material.");
+                if (this.submittingRequest) return alert("A solicitação já está sendo enviada. Aguarde alguns segundos.");
                 const reqDate = document.getElementById("req-date").value;
                 const signature = document.getElementById("req-signature").value.trim();
                 if (!reqDate || !signature) return alert("Informe data e assinatura do solicitante.");
+                this.submittingRequest = true;
                 try {
                     const groupedByWarehouse = {};
                     this.requestCart.forEach((line) => {
                         if (!groupedByWarehouse[line.warehouseId]) groupedByWarehouse[line.warehouseId] = [];
                         groupedByWarehouse[line.warehouseId].push({ ...line });
                     });
+
+                    const fingerprint = this.buildRequestFingerprint(this.requestCart, reqDate, signature);
+                    const duplicated = db.state.orders.some((o) => {
+                        if (o.requesterUserId !== auth.currentUser.user) return false;
+                        const orderTs = new Date(o.updatedAt || o.requestDate || o.date || 0).getTime();
+                        if (!Number.isFinite(orderTs)) return false;
+                        if (Date.now() - orderTs > 120000) return false;
+                        const orderSignature = String(o.requesterSignature || "").trim().toLowerCase();
+                        const orderDate = new Date(o.requestDate || o.date || nowIso()).toISOString().slice(0, 10);
+                        const orderLines = (o.lines || []).map((line) => `${line.itemId}|${Number(line.qtyRequested || 0)}`).sort().join(";");
+                        const orderFingerprint = `${o.requesterUserId}|${orderDate}|${orderSignature}|${orderLines}`;
+                        return orderFingerprint === fingerprint;
+                    });
+                    if (duplicated) {
+                        alert("Solicitação duplicada detectada. O pedido já foi enviado há instantes.");
+                        this.clearRequestCart();
+                        ui.closeModal();
+                        ui.renderAll();
+                        return;
+                    }
 
                     const requestBatchId = uid("lote");
                     const createdOrders = [];
@@ -2306,7 +2339,28 @@
                 } catch (err) {
                     console.error("Erro ao enviar solicitação:", err);
                     alert(`Não foi possível enviar a solicitação.\n\nDetalhe: ${err.message || "Erro desconhecido"}`);
+                } finally {
+                    this.submittingRequest = false;
                 }
+            },
+            async deleteOrder(orderId) {
+                if (auth.currentUser?.role !== "admin") {
+                    alert("Somente administrador pode excluir pedidos.");
+                    return;
+                }
+                const order = db.state.orders.find((o) => o.id === orderId);
+                if (!order) return alert("Pedido não encontrado.");
+                const confirmDelete = confirm(`Deseja realmente excluir o pedido #${order.id.slice(-6)}?\n\nEssa ação não pode ser desfeita.`);
+                if (!confirmDelete) return;
+                db.state.orders = db.state.orders.filter((o) => o.id !== orderId);
+                db.addAuditLog("order_deleted", {
+                    orderId,
+                    requestBatchId: order.requestBatchId || "",
+                    warehouseId: order.warehouseId,
+                    requester: order.requesterUserId
+                });
+                await db.save();
+                ui.renderAll();
             },
             async toggleSeparated(orderId, lineId, separated) {
                 if (!this.must("canManageOrders", "Sem permissão para gerenciar pedidos.")) return;
