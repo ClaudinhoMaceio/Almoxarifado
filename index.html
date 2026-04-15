@@ -571,7 +571,8 @@
                 order_status_changed: "Status da solicitação alterado",
                 settings_updated: "Configurações atualizadas",
                 stock_replenished: "Reposição de estoque",
-                stock_imported_excel: "Importação de materiais por Excel"
+                stock_imported_excel: "Importação de materiais por Excel",
+                item_min_updated: "Estoque mínimo atualizado"
             };
             return map[action] || action;
         }
@@ -1553,7 +1554,12 @@
                         <td class="px-6 py-4 text-right">
                             <div class="flex justify-end">
                                 ${auth.hasPermission("canAddEntry")
-                                    ? `<button onclick="logic.promptReplenish('${i.id}')" class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold">+ Entrada</button>`
+                                    ? `
+                                        <div class="flex items-center gap-2">
+                                            <button onclick="logic.promptSetMinQty('${i.id}')" class="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold">Mínimo</button>
+                                            <button onclick="logic.promptReplenish('${i.id}')" class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold">+ Entrada</button>
+                                        </div>
+                                    `
                                     : '<span class="text-xs text-slate-400">Sem entrada</span>'}
                             </div>
                         </td>
@@ -2134,9 +2140,14 @@
                 if (qtyStr === null) return;
                 const qty = Number(qtyStr);
                 if (!Number.isFinite(qty) || qty <= 0) return alert("Informe uma quantidade válida maior que zero.");
+                const minStr = prompt(`Estoque mínimo para ${item.name} (atual: ${item.minQty || 0}):`, String(item.minQty || 0));
+                if (minStr === null) return;
+                const newMinQty = Number(minStr);
+                if (!Number.isFinite(newMinQty) || newMinQty < 0) return alert("Informe um estoque mínimo válido (0 ou maior).");
                 const date = prompt("Data da reposição (AAAA-MM-DD):", new Date().toISOString().slice(0, 10)) || new Date().toISOString().slice(0, 10);
 
                 item.qty = Number(item.qty || 0) + qty;
+                item.minQty = Math.floor(newMinQty);
                 item.updatedAt = nowIso();
                 db.state.replenishments.push({
                     id: uid("rep"),
@@ -2152,6 +2163,20 @@
                     updatedAt: nowIso()
                 });
                 db.addAuditLog("stock_replenished", { itemId: item.id, qty, unit: item.unit, date, warehouseId: item.warehouseId });
+                await db.save();
+                ui.renderAll();
+            },
+            async promptSetMinQty(itemId) {
+                if (!this.must("canAddEntry", "Somente usuários autorizados pelo administrador podem alterar o estoque mínimo.")) return;
+                const item = db.state.items.find((i) => i.id === itemId);
+                if (!item) return alert("Item não encontrado.");
+                const minStr = prompt(`Novo estoque mínimo para ${item.name}:`, String(item.minQty || 0));
+                if (minStr === null) return;
+                const minQty = Number(minStr);
+                if (!Number.isFinite(minQty) || minQty < 0) return alert("Informe um estoque mínimo válido (0 ou maior).");
+                item.minQty = Math.floor(minQty);
+                item.updatedAt = nowIso();
+                db.addAuditLog("item_min_updated", { itemId: item.id, minQty: item.minQty, warehouseId: item.warehouseId });
                 await db.save();
                 ui.renderAll();
             },
