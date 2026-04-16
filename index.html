@@ -77,6 +77,23 @@
         #tab-dash .grid > div h3 {
             letter-spacing: -0.02em;
         }
+        .dashboard-stat-card {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
+        }
+        .dashboard-stat-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 4px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(14, 165, 233, 0.75), rgba(59, 130, 246, 0.18));
+        }
+        .dashboard-stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.10) !important;
+        }
         #dash-alerts-box {
             background: linear-gradient(180deg, #fffef8 0%, #ffffff 100%);
             border: 1px solid #fcd34d;
@@ -104,8 +121,9 @@
     <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center p-4 z-50">
         <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md animate-fade">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-black text-blue-600">SANE<span class="text-slate-800">GESTAO</span></h1>
-                <p class="text-slate-400 text-sm">Controle de Materiais e Equipamentos</p>
+                <img id="login-logo" src="" alt="Logo do sistema" class="hidden w-20 h-20 object-contain mx-auto mb-4">
+                <h1 id="login-brand-title" class="text-3xl font-black text-blue-600">SANEGESTÃO</h1>
+                <p id="login-brand-subtitle" class="text-slate-400 text-sm">Controle de Materiais e Equipamentos</p>
             </div>
             <form id="login-form" class="space-y-4">
                 <input type="text" id="user" placeholder="Usuário" required class="w-full px-5 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -122,7 +140,9 @@
     <div id="main-app" class="hidden flex-1 flex flex-col lg:flex-row overflow-hidden">
         <aside class="bg-slate-900 text-white w-full lg:w-64 flex flex-col shrink-0">
             <div class="p-6 text-center border-b border-slate-800">
+                <img id="sidebar-logo" src="" alt="Logo do sistema" class="hidden w-14 h-14 object-contain mx-auto mb-3 rounded-2xl bg-white/5 p-2">
                 <h2 id="brand-title" class="font-black text-xl tracking-tighter">SANEGESTÃO</h2>
+                <p id="brand-subtitle" class="text-[11px] text-slate-400 mt-1">Controle de Materiais e Equipamentos</p>
                 <div id="status-cloud" class="text-[10px] mt-2 flex items-center justify-center gap-1 text-yellow-300">
                     <span class="w-2 h-2 bg-yellow-300 rounded-full animate-pulse"></span> MODO LOCAL
                 </div>
@@ -169,23 +189,23 @@
 
             <div id="tab-dash" class="tab-content active animate-fade">
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
-                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                    <div class="dashboard-stat-card bg-white p-6 rounded-3xl shadow-sm">
                         <p class="text-slate-400 text-sm uppercase font-bold">Estoque Baixo</p>
                         <h3 id="stat-alerts" class="text-4xl font-black text-red-500 mt-2">0</h3>
                     </div>
-                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                    <div class="dashboard-stat-card bg-white p-6 rounded-3xl shadow-sm">
                         <p class="text-slate-400 text-sm uppercase font-bold">Pedidos Aguardando</p>
                         <h3 id="stat-orders" class="text-4xl font-black text-blue-500 mt-2">0</h3>
                     </div>
-                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                    <div class="dashboard-stat-card bg-white p-6 rounded-3xl shadow-sm">
                         <p class="text-slate-400 text-sm uppercase font-bold">Total de Itens</p>
                         <h3 id="stat-total" class="text-4xl font-black text-slate-800 mt-2">0</h3>
                     </div>
-                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                    <div class="dashboard-stat-card bg-white p-6 rounded-3xl shadow-sm">
                         <p class="text-slate-400 text-sm uppercase font-bold">Armazéns</p>
                         <h3 id="stat-wh" class="text-4xl font-black text-indigo-600 mt-2">0</h3>
                     </div>
-                    <div class="bg-white p-6 rounded-3xl shadow-sm">
+                    <div class="dashboard-stat-card bg-white p-6 rounded-3xl shadow-sm">
                         <p class="text-slate-400 text-sm uppercase font-bold">Entregues Hoje</p>
                         <h3 id="stat-delivered" class="text-4xl font-black text-emerald-600 mt-2">0</h3>
                     </div>
@@ -208,6 +228,17 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <select id="stock-type-filter" class="bg-white px-4 py-3 rounded-2xl shadow-sm text-sm font-semibold text-slate-700">
+                        <option value="">Todos os tipos</option>
+                    </select>
+                    <select id="stock-classification-filter" class="bg-white px-4 py-3 rounded-2xl shadow-sm text-sm font-semibold text-slate-700">
+                        <option value="">Todas as classificações</option>
+                    </select>
+                    <button id="btn-clear-stock-filters" onclick="ui.resetStockFilters()" class="bg-slate-100 text-slate-700 px-4 py-3 rounded-2xl text-sm font-bold hover:bg-slate-200 transition-all">
+                        Limpar filtros
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                     <button id="btn-scope-own-materials" onclick="ui.setStockScope('own-materials')" class="bg-white px-4 py-3 rounded-2xl shadow-sm text-left">
                         <p class="text-xs text-slate-400 uppercase font-bold">Materiais Próprios</p>
                         <p class="text-xl font-black text-slate-800" id="count-own-materials">0</p>
@@ -223,16 +254,6 @@
                 </div>
                 <div class="mb-4">
                     <button id="btn-scope-all" onclick="ui.setStockScope('all')" class="text-xs bg-slate-100 text-slate-700 px-3 py-2 rounded-xl font-bold">Mostrar todo estoque</button>
-                </div>
-                <div class="grid md:grid-cols-2 gap-3 mb-4">
-                    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3">
-                        <p class="text-xs font-bold uppercase text-emerald-700">Campo de Entrada</p>
-                        <p class="text-xs text-emerald-800">Use <b>+ Entrada</b> para reposição e aumento de saldo do material.</p>
-                    </div>
-                    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-3">
-                        <p class="text-xs font-bold uppercase text-blue-700">Campo de Saída</p>
-                        <p class="text-xs text-blue-800">Use <b>- Saída</b> somente para retirada de material via pedido.</p>
-                    </div>
                 </div>
                 <div class="bg-white rounded-3xl shadow-sm overflow-x-auto">
                     <table class="w-full text-left">
@@ -349,7 +370,21 @@
                     <h3 class="text-xl font-bold">Configurações Gerais</h3>
                     <form onsubmit="logic.saveSettings(event)" class="grid md:grid-cols-2 gap-4">
                         <input id="cfg-system-name" type="text" placeholder="Nome do sistema" class="w-full p-3 border rounded-xl">
+                        <input id="cfg-system-subtitle" type="text" placeholder="Subtítulo do sistema" class="w-full p-3 border rounded-xl">
                         <input id="cfg-primary-color" type="color" class="w-full h-12 p-2 border rounded-xl">
+                        <div class="space-y-3">
+                            <input id="cfg-logo-url" type="text" placeholder="URL da logo ou imagem enviada" class="w-full p-3 border rounded-xl">
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <button type="button" onclick="document.getElementById('cfg-logo-file').click()" class="bg-slate-100 text-slate-800 px-4 py-3 rounded-xl text-sm font-bold hover:bg-slate-200">
+                                    Enviar logo do computador
+                                </button>
+                                <button type="button" onclick="logic.clearLogoField()" class="bg-red-50 text-red-700 px-4 py-3 rounded-xl text-sm font-bold hover:bg-red-100">
+                                    Remover logo
+                                </button>
+                            </div>
+                            <input id="cfg-logo-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="hidden" onchange="logic.handleLogoUpload(event)">
+                        </div>
+                        <input id="cfg-browser-title" type="text" placeholder="Título da aba do navegador" class="w-full p-3 border rounded-xl md:col-span-2">
                         <button type="submit" class="md:col-span-2 bg-blue-600 text-white py-3 rounded-xl font-bold">Salvar Configurações</button>
                     </form>
                     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
@@ -358,19 +393,35 @@
                             Abrir pasta do JSON no Google Drive
                         </button>
                     </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
+                        <div>
+                            <p class="text-sm font-bold text-slate-800">Backup e restauração</p>
+                            <p class="text-xs text-slate-500 mt-1">Baixe um backup completo do sistema e importe um arquivo para restaurar os dados quando for necessário.</p>
+                        </div>
+                        <div class="flex flex-col md:flex-row gap-3">
+                            <button type="button" onclick="logic.exportBackup()" class="bg-emerald-600 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-emerald-700">
+                                Baixar backup
+                            </button>
+                            <button type="button" onclick="document.getElementById('backup-file').click()" class="bg-amber-500 text-white px-4 py-3 rounded-xl text-sm font-bold hover:bg-amber-600">
+                                Importar backup
+                            </button>
+                        </div>
+                        <input id="backup-file" type="file" accept=".json" class="hidden" onchange="logic.importBackup(event)">
+                    </div>
                 </div>
                 <div id="audit-section" class="bg-white rounded-3xl shadow-sm overflow-hidden">
-                    <div class="p-6 border-b border-slate-50">
-                        <h4 class="font-bold">Histórico de Movimentações (Audit Log)</h4>
+                    <div class="p-6 border-b border-slate-50 bg-slate-50/70">
+                        <h4 class="font-bold text-slate-800">Histórico de Movimentações (Audit Log)</h4>
+                        <p class="text-xs text-slate-500 mt-1">Últimos registros do sistema, organizados por ação, usuário e horário.</p>
                     </div>
-                    <div id="history-list" class="divide-y divide-slate-50"></div>
+                    <div id="history-list" class="p-4 md:p-6 grid gap-3 bg-slate-50/40"></div>
                 </div>
             </div>
         </main>
     </div>
 
     <div id="modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
-        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-fade">
+        <div id="modal-shell" class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-fade">
             <div id="modal-content"></div>
         </div>
     </div>
@@ -468,6 +519,18 @@
                 });
                 return row;
             });
+        }
+
+        function downloadTextFile(filename, content, mimeType = "application/json") {
+            const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
         }
 
         function normalizeHeaderToken(value) {
@@ -573,9 +636,31 @@
                 stock_replenished: "Reposição de estoque",
                 stock_imported_excel: "Importação de materiais por Excel",
                 item_min_updated: "Estoque mínimo atualizado",
-                order_deleted: "Pedido excluído pelo administrador"
+                item_updated: "Material atualizado",
+                order_deleted: "Pedido excluído pelo administrador",
+                backup_exported: "Backup do sistema exportado",
+                backup_restored: "Backup do sistema restaurado"
             };
             return map[action] || action;
+        }
+
+        function formatAuditDetailsPt(details = {}) {
+            const parts = [];
+            if (details.name) parts.push(`Nome: ${details.name}`);
+            if (details.targetUser) parts.push(`Usuário alvo: ${details.targetUser}`);
+            if (details.code) parts.push(`Código: ${details.code}`);
+            if (details.itemId) parts.push(`Item: ${String(details.itemId).slice(-6)}`);
+            if (details.orderId) parts.push(`Pedido: ${String(details.orderId).slice(-6)}`);
+            if (details.fileName) parts.push(`Arquivo: ${details.fileName}`);
+            if (typeof details.qty !== "undefined") parts.push(`Qtd: ${details.qty}`);
+            if (typeof details.minQty !== "undefined") parts.push(`Mínimo: ${details.minQty}`);
+            if (details.unit) parts.push(`Unidade: ${details.unit}`);
+            if (details.to) parts.push(`Novo status: ${formatStatusPt(details.to)}`);
+            if (details.warehouseId) {
+                const warehouse = db.state.warehouses.find((w) => w.id === details.warehouseId);
+                parts.push(`Armazém: ${warehouse?.name || details.warehouseId}`);
+            }
+            return parts.slice(0, 4);
         }
 
         function nowIso() {
@@ -666,7 +751,14 @@
             state.orders = Array.isArray(state.orders) ? state.orders : [];
             state.logs = Array.isArray(state.logs) ? state.logs : [];
             state.replenishments = Array.isArray(state.replenishments) ? state.replenishments : [];
-            state.settings = state.settings || { systemName: "SANEGESTÃO", primaryColor: "#0284c7" };
+            state.settings = {
+                systemName: "SANEGESTÃO",
+                systemSubtitle: "Controle de Materiais e Equipamentos",
+                primaryColor: "#0284c7",
+                logoUrl: "",
+                browserTitle: "SaneGestão Pro - Controle de Almoxarifado",
+                ...(state.settings || {})
+            };
             state.unitCatalog = Array.isArray(state.unitCatalog) ? state.unitCatalog : defaultUnitCatalog();
 
             if (!state.warehouses.length) {
@@ -1001,7 +1093,13 @@
                 orders: [],
                 logs: [],
                 replenishments: [],
-                settings: { systemName: "SANEGESTÃO", primaryColor: "#0284c7" },
+                settings: {
+                    systemName: "SANEGESTÃO",
+                    systemSubtitle: "Controle de Materiais e Equipamentos",
+                    primaryColor: "#0284c7",
+                    logoUrl: "",
+                    browserTitle: "SaneGestão Pro - Controle de Almoxarifado"
+                },
                 unitCatalog: defaultUnitCatalog()
             }),
             isSyncing: false,
@@ -1146,8 +1244,72 @@
             currentTab: "dash",
             lastSyncAt: null,
             stockScope: "all",
+            stockTypeFilter: "",
+            stockClassificationFilter: "",
+            openRequestGroups: new Set(),
             isBasicUser() {
                 return auth.currentUser?.role === "usuario";
+            },
+            normalizeFilterLabel(value) {
+                return String(value || "").trim().toUpperCase();
+            },
+            inferItemClassification(item) {
+                const explicit = this.normalizeFilterLabel(item?.classification);
+                if (explicit) return explicit;
+                const text = `${item?.name || ""} ${item?.category || ""}`.toLowerCase();
+                if (text.includes("conex")) return "CONEXÕES";
+                if (text.includes("luva") || text.includes("joelho") || text.includes("adaptador") || text.includes("tê") || text.includes("te ")) return "CONEXÕES";
+                if (text.includes("tubo") || text.includes("cano")) return "TUBOS";
+                if (text.includes("registro") || text.includes("válvula") || text.includes("valvula")) return "REGISTROS E VÁLVULAS";
+                if (text.includes("cabo") || text.includes("fio") || text.includes("disjuntor")) return "ELÉTRICOS";
+                if (text.includes("ferrament")) return "FERRAMENTAS";
+                if (text.includes("parafuso") || text.includes("porca") || text.includes("arruela")) return "FIXAÇÃO";
+                if (text.includes("capacete") || text.includes("bota") || text.includes("óculos") || text.includes("oculos") || item?.category === "EPI") return "EPI";
+                if (item?.category === "EQUIPAMENTO") return "EQUIPAMENTOS";
+                if (item?.category === "PEÇA") return "PEÇAS";
+                return item?.category === "MATERIAL" ? "MATERIAIS GERAIS" : "OUTROS";
+            },
+            getStockClassificationOptions() {
+                const defaults = [
+                    "MATERIAIS GERAIS",
+                    "CONEXÕES",
+                    "TUBOS",
+                    "REGISTROS E VÁLVULAS",
+                    "ELÉTRICOS",
+                    "FERRAMENTAS",
+                    "FIXAÇÃO",
+                    "EPI",
+                    "EQUIPAMENTOS",
+                    "PEÇAS",
+                    "OUTROS"
+                ];
+                const fromItems = db.state.items.map((item) => this.inferItemClassification(item)).filter(Boolean);
+                return [...new Set([...defaults, ...fromItems])].sort((a, b) => a.localeCompare(b, "pt-BR"));
+            },
+            syncStockFilters(items) {
+                const typeSelect = document.getElementById("stock-type-filter");
+                const classificationSelect = document.getElementById("stock-classification-filter");
+                if (!typeSelect || !classificationSelect) return;
+                const typeOptions = [...new Set(items.map((item) => this.normalizeFilterLabel(item.category)).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+                typeSelect.innerHTML = ['<option value="">Todos os tipos</option>']
+                    .concat(typeOptions.map((option) => `<option value="${option}">${option}</option>`))
+                    .join("");
+                typeSelect.value = this.stockTypeFilter || "";
+                const classificationOptions = this.getStockClassificationOptions();
+                classificationSelect.innerHTML = ['<option value="">Todas as classificações</option>']
+                    .concat(classificationOptions.map((option) => `<option value="${option}">${option}</option>`))
+                    .join("");
+                classificationSelect.value = this.stockClassificationFilter || "";
+            },
+            resetStockFilters() {
+                this.stockTypeFilter = "";
+                this.stockClassificationFilter = "";
+                const typeSelect = document.getElementById("stock-type-filter");
+                const classificationSelect = document.getElementById("stock-classification-filter");
+                if (typeSelect) typeSelect.value = "";
+                if (classificationSelect) classificationSelect.value = "";
+                this.renderStock();
             },
             getAllowedTabs() {
                 if (this.isBasicUser()) return ["stock", "requests"];
@@ -1215,10 +1377,36 @@
                 set("count-sabesp-materials", sabespMaterials);
             },
             applySettings() {
-                document.documentElement.style.setProperty("--primary", db.state.settings.primaryColor || "#0284c7");
-                document.getElementById("brand-title").innerText = db.state.settings.systemName || "SANEGESTÃO";
-                document.getElementById("cfg-system-name").value = db.state.settings.systemName || "SANEGESTÃO";
-                document.getElementById("cfg-primary-color").value = db.state.settings.primaryColor || "#0284c7";
+                const settings = db.state.settings || {};
+                const systemName = settings.systemName || "SANEGESTÃO";
+                const systemSubtitle = settings.systemSubtitle || "Controle de Materiais e Equipamentos";
+                const primaryColor = settings.primaryColor || "#0284c7";
+                const logoUrl = String(settings.logoUrl || "").trim();
+                const browserTitle = settings.browserTitle || "SaneGestão Pro - Controle de Almoxarifado";
+                document.documentElement.style.setProperty("--primary", primaryColor);
+                document.getElementById("brand-title").innerText = systemName;
+                document.getElementById("brand-subtitle").innerText = systemSubtitle;
+                document.getElementById("login-brand-title").innerText = systemName;
+                document.getElementById("login-brand-subtitle").innerText = systemSubtitle;
+                document.getElementById("cfg-system-name").value = systemName;
+                document.getElementById("cfg-system-subtitle").value = systemSubtitle;
+                document.getElementById("cfg-primary-color").value = primaryColor;
+                document.getElementById("cfg-logo-url").value = logoUrl;
+                document.getElementById("cfg-browser-title").value = browserTitle;
+                document.title = browserTitle;
+                const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+                if (themeColorMeta) themeColorMeta.setAttribute("content", primaryColor);
+                ["login-logo", "sidebar-logo"].forEach((id) => {
+                    const img = document.getElementById(id);
+                    if (!img) return;
+                    if (logoUrl) {
+                        img.src = logoUrl;
+                        img.classList.remove("hidden");
+                    } else {
+                        img.src = "";
+                        img.classList.add("hidden");
+                    }
+                });
             },
             init() {
                 document.getElementById("loader").style.opacity = "0";
@@ -1270,8 +1458,10 @@
             openModal(type, payload = null) {
                 const modal = document.getElementById("modal");
                 const content = document.getElementById("modal-content");
+                const shell = document.getElementById("modal-shell");
                 modal.classList.remove("hidden");
                 modal.classList.add("flex");
+                if (shell) shell.className = "bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-fade";
 
                 if (type === "add-item") {
                     if (!auth.hasPermission("canManageStock")) return alert("Você não tem permissão para cadastrar itens.");
@@ -1288,6 +1478,9 @@
                                     <option>EQUIPAMENTO</option>
                                     <option>PEÇA</option>
                                     <option>EPI</option>
+                                </select>
+                                <select id="m-classification" class="w-full p-3 border rounded-xl">
+                                    ${this.getStockClassificationOptions().map((option) => `<option value="${option}">${option}</option>`).join("")}
                                 </select>
                                 <select id="m-area" class="w-full p-3 border rounded-xl">
                                     <option value="PROPRIO">Próprio</option>
@@ -1308,6 +1501,98 @@
                             </form>
                         </div>
                     `;
+                    return;
+                }
+
+                if (type === "edit-item") {
+                    if (!auth.hasPermission("canManageStock")) return alert("Você não tem permissão para editar itens.");
+                    const item = db.state.items.find((i) => i.id === payload);
+                    if (!item) return alert("Item não encontrado.");
+                    if (shell) shell.className = "bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-fade max-h-[88vh]";
+                    const whOptions = db.state.warehouses.map((w) => `<option value="${w.id}" ${w.id === item.warehouseId ? "selected" : ""}>${w.name}</option>`).join("");
+                    const unitOptions = db.state.unitCatalog.map((u) => `<option value="${u}" ${(item.unit || "UN") === u ? "selected" : ""}>${u}</option>`).join("");
+                    content.innerHTML = `
+                        <div class="p-5 md:p-6 overflow-y-auto max-h-[88vh]">
+                            <h3 class="text-lg font-bold mb-4">Editar Material</h3>
+                            <form onsubmit="logic.updateItem(event, '${item.id}')" class="space-y-3">
+                                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-600">
+                                    Aqui você pode corrigir os dados do cadastro, o estoque atual e também o estoque mínimo do material.
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-slate-500 uppercase mb-1">Código</p>
+                                    <p class="text-xs text-slate-400 mb-1">Use o código para identificar o item. Em materiais SABESP ele é obrigatório.</p>
+                                    <input type="text" id="edit-m-code" value="${item.code || ""}" placeholder="Código do material" class="w-full p-3 border rounded-xl">
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-slate-500 uppercase mb-1">Nome do material</p>
+                                    <p class="text-xs text-slate-400 mb-1">Informe o nome que o funcionário vai procurar no estoque.</p>
+                                    <input type="text" id="edit-m-name" value="${item.name || ""}" placeholder="Nome do Material" required class="w-full p-3 border rounded-xl">
+                                </div>
+                                <div class="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-500 uppercase mb-1">Tipo</p>
+                                        <p class="text-xs text-slate-400 mb-1">Define se o item é material, equipamento, peça ou EPI.</p>
+                                        <select id="edit-m-cat" class="w-full p-3 border rounded-xl">
+                                            <option ${item.category === "MATERIAL" ? "selected" : ""}>MATERIAL</option>
+                                            <option ${item.category === "EQUIPAMENTO" ? "selected" : ""}>EQUIPAMENTO</option>
+                                            <option ${item.category === "PEÇA" ? "selected" : ""}>PEÇA</option>
+                                            <option ${item.category === "EPI" ? "selected" : ""}>EPI</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-500 uppercase mb-1">Classificação</p>
+                                        <p class="text-xs text-slate-400 mb-1">Organiza melhor a busca, como conexões, tubos, elétricos, EPI e outros.</p>
+                                        <select id="edit-m-classification" class="w-full p-3 border rounded-xl">
+                                            ${this.getStockClassificationOptions().map((option) => `<option value="${option}" ${this.inferItemClassification(item) === option ? "selected" : ""}>${option}</option>`).join("")}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-500 uppercase mb-1">Área</p>
+                                        <p class="text-xs text-slate-400 mb-1">Escolha se o item pertence ao estoque próprio ou SABESP.</p>
+                                        <select id="edit-m-area" class="w-full p-3 border rounded-xl">
+                                            <option value="PROPRIO" ${item.area === "PROPRIO" ? "selected" : ""}>Próprio</option>
+                                            <option value="SABESP" ${item.area === "SABESP" ? "selected" : ""}>SABESP</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-500 uppercase mb-1">Armazém</p>
+                                        <p class="text-xs text-slate-400 mb-1">Define em qual armazém o item vai ficar cadastrado.</p>
+                                        <select id="edit-m-wh" class="w-full p-3 border rounded-xl">${whOptions}</select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-slate-500 uppercase mb-1">Unidade</p>
+                                    <p class="text-xs text-slate-400 mb-1">Exemplo: UN, M, KG, CX ou outra unidade personalizada.</p>
+                                    <select id="edit-m-unit" class="w-full p-3 border rounded-xl">
+                                    ${unitOptions}
+                                    <option value="__CUSTOM__" ${!db.state.unitCatalog.includes(item.unit || "UN") ? "selected" : ""}>Outra unidade...</option>
+                                    </select>
+                                    <input type="text" id="edit-m-unit-custom" placeholder="Digite a unidade personalizada" class="hidden w-full p-3 border rounded-xl mt-3">
+                                </div>
+                                <div class="grid md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-500 uppercase mb-1">Estoque atual</p>
+                                        <p class="text-xs text-slate-400 mb-1">Quantidade disponível neste momento para este item.</p>
+                                        <input type="number" id="edit-m-qty" value="${Number(item.qty || 0)}" min="0" required class="w-full p-3 border rounded-xl" placeholder="Quantidade em estoque">
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-500 uppercase mb-1">Estoque mínimo</p>
+                                        <p class="text-xs text-slate-400 mb-1">Quando o saldo chegar nesse valor, o item entra em alerta.</p>
+                                        <input type="number" id="edit-m-min" value="${Number(item.minQty || 0)}" min="0" required class="w-full p-3 border rounded-xl" placeholder="Estoque mínimo">
+                                    </div>
+                                </div>
+                                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">SALVAR ALTERAÇÕES</button>
+                                <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-1">Cancelar</button>
+                            </form>
+                        </div>
+                    `;
+                    this.toggleEditCustomUnitInput(!db.state.unitCatalog.includes(item.unit || "UN") ? "__CUSTOM__" : (item.unit || "UN"));
+                    if (!db.state.unitCatalog.includes(item.unit || "UN")) {
+                        document.getElementById("edit-m-unit-custom").value = item.unit || "";
+                    }
+                    document.getElementById("edit-m-unit").addEventListener("change", (e) => this.toggleEditCustomUnitInput(e.target.value));
                     return;
                 }
 
@@ -1504,7 +1789,12 @@
             updateStats() {
                 const items = this.userItemsScope();
                 const pendingOrders = this.userOrdersScope().filter((o) => o.status === "pending").length;
-                const deliveredToday = db.state.orders.filter((o) => o.status === "delivered" && new Date(o.date).toDateString() === new Date().toDateString()).length;
+                const todayLabel = new Date().toDateString();
+                const deliveredToday = db.state.orders.filter((o) => {
+                    if (o.status !== "delivered") return false;
+                    const deliveredAt = o.deliveredAt || o.updatedAt || o.requestDate || o.date;
+                    return new Date(deliveredAt).toDateString() === todayLabel;
+                }).length;
                 const lowItems = items.filter((i) => i.qty <= i.minQty);
 
                 document.getElementById("stat-total").innerText = String(items.length);
@@ -1534,16 +1824,29 @@
                 const canRequest = auth.hasPermission("canRequestItems");
                 const canOutputItem = (item) => canRequest && item.category === "MATERIAL";
                 this.updateStockCounters(items);
+                this.syncStockFilters(items);
                 let scoped = items;
                 if (this.stockScope === "own-materials") scoped = items.filter((i) => i.area === "PROPRIO" && i.category !== "EQUIPAMENTO");
                 if (this.stockScope === "own-equipment") scoped = items.filter((i) => i.area === "PROPRIO" && i.category === "EQUIPAMENTO");
                 if (this.stockScope === "sabesp-materials") scoped = items.filter((i) => i.area === "SABESP");
-                const filtered = scoped.filter((i) => i.name.toLowerCase().includes(filter) || i.category.toLowerCase().includes(filter) || String(i.code || "").toLowerCase().includes(filter));
+                const filtered = scoped.filter((i) => {
+                    const classification = this.inferItemClassification(i);
+                    const matchesText = i.name.toLowerCase().includes(filter)
+                        || i.category.toLowerCase().includes(filter)
+                        || String(i.code || "").toLowerCase().includes(filter)
+                        || classification.toLowerCase().includes(filter);
+                    const matchesType = !this.stockTypeFilter || this.normalizeFilterLabel(i.category) === this.stockTypeFilter;
+                    const matchesClassification = !this.stockClassificationFilter || classification === this.stockClassificationFilter;
+                    return matchesText && matchesType && matchesClassification;
+                });
                 tbody.innerHTML = filtered.map((i) => `
                     <tr>
                         <td class="px-6 py-4 text-xs font-mono">${i.code || "-"}</td>
                         <td class="px-6 py-4 font-bold text-slate-700">${i.name}</td>
-                        <td class="px-6 py-4 text-xs">${i.category}</td>
+                        <td class="px-6 py-4 text-xs">
+                            <div>${i.category}</div>
+                            <div class="text-[10px] text-slate-400 mt-1">${this.inferItemClassification(i)}</div>
+                        </td>
                         <td class="px-6 py-4 text-xs">${i.area === "SABESP" ? "SABESP" : "PRÓPRIO"}</td>
                         <td class="px-6 py-4 font-black">${i.qty} ${i.unit || "UN"}</td>
                         <td class="px-6 py-4 text-slate-400">${i.minQty} ${i.unit || "UN"}</td>
@@ -1557,11 +1860,10 @@
                                 ${auth.hasPermission("canAddEntry")
                                     ? `
                                         <div class="flex items-center gap-2">
-                                            <button onclick="logic.promptSetMinQty('${i.id}')" class="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold">Mínimo</button>
-                                            <button onclick="logic.promptReplenish('${i.id}')" class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold">+ Entrada</button>
+                                            ${auth.hasPermission("canManageStock") ? `<button onclick="ui.openModal('edit-item', '${i.id}')" class="bg-slate-100 text-slate-700 px-3 py-1 rounded-lg text-xs font-bold">Editar</button>` : ""}
                                         </div>
                                     `
-                                    : '<span class="text-xs text-slate-400">Sem entrada</span>'}
+                                    : '<span class="text-xs text-slate-400">Sem edição</span>'}
                             </div>
                         </td>
                         <td class="px-6 py-4 text-right">
@@ -1569,8 +1871,7 @@
                                 ${canRequest
                                     ? (canOutputItem(i)
                                         ? `
-                                        <input id="rq-qty-${i.id}" type="number" min="1" max="${i.qty}" value="1" class="w-20 p-1 border rounded-lg text-xs text-right" title="Quantidade de saída">
-                                        <button onclick="logic.addToRequestCart('${i.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white px-3 py-1 rounded-lg text-xs font-bold transition-all">- Saída</button>
+                                        <button onclick="logic.promptAddToRequestCart('${i.id}')" class="bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-all">Saída</button>
                                     `
                                         : '<span class="text-xs text-amber-600">Somente MATERIAL</span>')
                                     : '<span class="text-xs text-slate-400">Sem saída</span>'}
@@ -1624,11 +1925,19 @@
                     grouped[o.requesterUserId].orders.push(o);
                 });
 
+                const currentlyOpen = new Set(
+                    [...container.querySelectorAll("details[data-request-group]")]
+                        .filter((el) => el.open)
+                        .map((el) => el.dataset.requestGroup)
+                );
+                if (currentlyOpen.size) this.openRequestGroups = currentlyOpen;
+
                 container.innerHTML = Object.keys(grouped).map((userId) => {
                     const group = grouped[userId];
                     const pending = group.orders.filter((o) => o.status !== "delivered").length;
+                    const isOpen = this.openRequestGroups.has(userId);
                     return `
-                        <details class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                        <details data-request-group="${userId}" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5" ${isOpen ? "open" : ""}>
                             <summary class="cursor-pointer list-none flex items-center justify-between">
                                 <div>
                                     <p class="font-bold text-slate-800">${group.userName}</p>
@@ -1666,6 +1975,15 @@
                         </details>
                     `;
                 }).join("") || '<div class="text-slate-400">Nenhum pedido encontrado.</div>';
+
+                container.querySelectorAll("details[data-request-group]").forEach((detail) => {
+                    detail.addEventListener("toggle", () => {
+                        const groupId = detail.dataset.requestGroup;
+                        if (!groupId) return;
+                        if (detail.open) this.openRequestGroups.add(groupId);
+                        else this.openRequestGroups.delete(groupId);
+                    });
+                });
             },
             renderHistory() {
                 const container = document.getElementById("history-list");
@@ -1675,16 +1993,26 @@
                 }
                 const rows = db.state.logs.slice(0, 20);
                 if (!rows.length) {
-                    container.innerHTML = '<div class="p-6 text-slate-400 text-sm">Sem movimentações registradas.</div>';
+                    container.innerHTML = '<div class="bg-white border border-slate-200 rounded-2xl p-6 text-slate-400 text-sm">Sem movimentações registradas.</div>';
                     return;
                 }
                 container.innerHTML = rows.map((log) => `
-                    <div class="p-4 md:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        <div>
-                            <p class="font-semibold text-slate-800">${formatAuditActionPt(log.action)}</p>
-                            <p class="text-xs text-slate-500">${log.userName} (${log.user})</p>
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 md:p-5 shadow-sm">
+                        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2 mb-2">
+                                    <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">${formatAuditActionPt(log.action)}</span>
+                                    <span class="px-2 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 uppercase">${formatRolePt(log.role || "service")}</span>
+                                </div>
+                                <p class="font-semibold text-slate-800">${log.userName} <span class="text-slate-400 font-normal">(${log.user})</span></p>
+                                ${formatAuditDetailsPt(log.details).length
+                                    ? `<div class="mt-3 flex flex-wrap gap-2">
+                                        ${formatAuditDetailsPt(log.details).map((detail) => `<span class="text-[11px] bg-slate-50 border border-slate-200 text-slate-600 px-2 py-1 rounded-lg">${detail}</span>`).join("")}
+                                    </div>`
+                                    : '<p class="text-xs text-slate-400 mt-2">Sem detalhes adicionais.</p>'}
+                            </div>
+                            <div class="text-xs text-slate-400 whitespace-nowrap">${new Date(log.createdAt).toLocaleString("pt-BR")}</div>
                         </div>
-                        <div class="text-xs text-slate-400">${new Date(log.createdAt).toLocaleString("pt-BR")}</div>
                     </div>
                 `).join("");
             },
@@ -1969,6 +2297,14 @@
                 customInput.required = show;
                 if (!show) customInput.value = "";
             },
+            toggleEditCustomUnitInput(value) {
+                const customInput = document.getElementById("edit-m-unit-custom");
+                if (!customInput) return;
+                const show = value === "__CUSTOM__";
+                customInput.classList.toggle("hidden", !show);
+                customInput.required = show;
+                if (!show) customInput.value = "";
+            },
             async addItem(e) {
                 e.preventDefault();
                 if (!this.must("canManageStock", "Sem permissão para cadastrar materiais.")) return;
@@ -1983,6 +2319,8 @@
                     }
                 }
                 const category = document.getElementById("m-cat").value;
+                const classification = ui.normalizeFilterLabel(document.getElementById("m-classification").value)
+                    || ui.inferItemClassification({ category, name: document.getElementById("m-name").value.trim() });
                 const area = document.getElementById("m-area").value;
                 const code = document.getElementById("m-code").value.trim();
                 if (area === "SABESP" && category === "EQUIPAMENTO") {
@@ -1998,6 +2336,7 @@
                     code,
                     name: document.getElementById("m-name").value.trim(),
                     category,
+                    classification,
                     warehouseId: whId,
                     area,
                     unit,
@@ -2011,6 +2350,88 @@
                 await db.save();
                 ui.closeModal();
                 ui.renderAll();
+            },
+            async updateItem(e, itemId) {
+                e.preventDefault();
+                if (!this.must("canManageStock", "Sem permissão para editar materiais.")) return;
+                const item = db.state.items.find((i) => i.id === itemId);
+                if (!item) return alert("Item não encontrado.");
+                const category = document.getElementById("edit-m-cat").value;
+                const classification = ui.normalizeFilterLabel(document.getElementById("edit-m-classification").value)
+                    || ui.inferItemClassification({ category, name: document.getElementById("edit-m-name").value.trim() });
+                const area = document.getElementById("edit-m-area").value;
+                const code = document.getElementById("edit-m-code").value.trim();
+                if (area === "SABESP" && category === "EQUIPAMENTO") {
+                    alert("A área SABESP aceita apenas materiais. Equipamentos SABESP não são permitidos.");
+                    return;
+                }
+                if (area === "SABESP" && !code) {
+                    alert("Para itens SABESP, informe o código do material.");
+                    return;
+                }
+                const selectedUnit = document.getElementById("edit-m-unit").value;
+                let unit = selectedUnit;
+                if (selectedUnit === "__CUSTOM__") {
+                    unit = document.getElementById("edit-m-unit-custom").value.trim().toUpperCase();
+                    if (!unit) {
+                        alert("Informe a unidade personalizada.");
+                        return;
+                    }
+                }
+                item.code = code;
+                item.name = document.getElementById("edit-m-name").value.trim();
+                item.category = category;
+                item.classification = classification;
+                item.warehouseId = document.getElementById("edit-m-wh").value;
+                item.area = area;
+                item.unit = unit;
+                item.qty = parseInt(document.getElementById("edit-m-qty").value, 10);
+                item.minQty = parseInt(document.getElementById("edit-m-min").value, 10);
+                item.updatedAt = nowIso();
+                if (!db.state.unitCatalog.includes(unit)) db.state.unitCatalog.push(unit);
+                db.addAuditLog("item_updated", {
+                    itemId: item.id,
+                    code: item.code,
+                    name: item.name,
+                    unit: item.unit,
+                    area: item.area,
+                    warehouseId: item.warehouseId
+                });
+                await db.save();
+                ui.closeModal();
+                ui.renderAll();
+                alert("Material atualizado com sucesso.");
+            },
+            promptAddToRequestCart(itemId) {
+                if (!this.must("canRequestItems", "Sem permissão para solicitar materiais.")) return;
+                const item = db.state.items.find((i) => i.id === itemId);
+                if (!item) return alert("Item não encontrado.");
+                const value = prompt(`Informe a quantidade de saída para "${item.name}".\nSaldo disponível: ${item.qty} ${item.unit || "UN"}`, "1");
+                if (value === null) return;
+                const qtyRequested = parseInt(value, 10);
+                if (!Number.isInteger(qtyRequested) || qtyRequested <= 0) {
+                    alert("Informe uma quantidade válida.");
+                    return;
+                }
+                if (qtyRequested > item.qty) {
+                    alert(`Quantidade maior que o saldo disponível (${item.qty}).`);
+                    return;
+                }
+                const existing = this.requestCart.find((l) => l.itemId === item.id);
+                if (existing) existing.qtyRequested = qtyRequested;
+                else {
+                    this.requestCart.push({
+                        lineId: uid("line"),
+                        itemId: item.id,
+                        itemName: item.name,
+                        qtyRequested,
+                        unit: item.unit || "UN",
+                        warehouseId: item.warehouseId,
+                        separated: false
+                    });
+                }
+                ui.updateRequestCartCounter();
+                alert(`Item ${item.name} adicionado/atualizado na solicitação.`);
             },
             getExcelValue(row, keys, fallback = "") {
                 for (const key of Object.keys(row || {})) {
@@ -2076,10 +2497,11 @@
                         return;
                     }
 
-                    const categoryRaw = String(this.getExcelValue(row, ["categoria", "tipo", "classificacao"], "MATERIAL")).toUpperCase();
+                    const categoryRaw = String(this.getExcelValue(row, ["categoria", "tipo"], "MATERIAL")).toUpperCase();
                     let category = isSabespTemplate
                         ? "MATERIAL"
                         : (["MATERIAL", "EQUIPAMENTO", "PEÇA", "EPI"].includes(categoryRaw) ? categoryRaw : "MATERIAL");
+                    const rawClassification = ui.normalizeFilterLabel(this.getExcelValue(row, ["classificacao", "classificação", "grupo", "subgrupo", "familia", "família"], ""));
 
                     const unit = String(
                         this.getExcelValue(
@@ -2112,6 +2534,7 @@
                         already.minQty = Math.max(Number(already.minQty || 0), minQty);
                         already.unit = unit;
                         already.category = category;
+                        already.classification = rawClassification || already.classification || ui.inferItemClassification({ ...already, name, category });
                         already.area = area;
                         already.updatedAt = nowIso();
                     } else {
@@ -2120,6 +2543,7 @@
                             code,
                             name,
                             category,
+                            classification: rawClassification || ui.inferItemClassification({ name, category }),
                             warehouseId,
                             area,
                             unit,
@@ -2400,8 +2824,10 @@
                         const item = db.state.items.find((i) => i.id === line.itemId);
                         item.qty -= line.qtyRequested;
                     }
+                    order.deliveredAt = nowIso();
                     db.addAuditLog("order_delivered", { orderId: id, lineCount: lines.length, warehouseId: order.warehouseId });
                 } else {
+                    order.deliveredAt = null;
                     db.addAuditLog("order_status_changed", { orderId: id, from: order.status, to: status, warehouseId: order.warehouseId });
                 }
                 order.status = status;
@@ -2417,11 +2843,90 @@
                 e.preventDefault();
                 if (!this.must("canManageSettings", "Sem permissão para alterar configurações.")) return;
                 db.state.settings.systemName = document.getElementById("cfg-system-name").value.trim() || "SANEGESTÃO";
+                db.state.settings.systemSubtitle = document.getElementById("cfg-system-subtitle").value.trim() || "Controle de Materiais e Equipamentos";
                 db.state.settings.primaryColor = document.getElementById("cfg-primary-color").value || "#0284c7";
+                db.state.settings.logoUrl = document.getElementById("cfg-logo-url").value.trim();
+                db.state.settings.browserTitle = document.getElementById("cfg-browser-title").value.trim() || "SaneGestão Pro - Controle de Almoxarifado";
                 db.addAuditLog("settings_updated", {});
                 await db.save();
                 ui.applySettings();
                 alert("Configurações salvas.");
+            },
+            async handleLogoUpload(e) {
+                if (!this.must("canManageSettings", "Sem permissão para alterar a logo.")) return;
+                const input = e?.target;
+                const file = input?.files?.[0];
+                if (!file) return;
+                const maxSizeBytes = 2 * 1024 * 1024;
+                if (file.size > maxSizeBytes) {
+                    alert("A imagem da logo deve ter no máximo 2 MB.");
+                    if (input) input.value = "";
+                    return;
+                }
+                try {
+                    const dataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(String(reader.result || ""));
+                        reader.onerror = () => reject(new Error("Falha ao ler a imagem selecionada."));
+                        reader.readAsDataURL(file);
+                    });
+                    document.getElementById("cfg-logo-url").value = dataUrl;
+                    alert("Logo carregada. Agora clique em Salvar Configurações para aplicar no sistema.");
+                } catch (err) {
+                    alert(`Não foi possível carregar a logo.\n\nDetalhe: ${err.message}`);
+                } finally {
+                    if (input) input.value = "";
+                }
+            },
+            clearLogoField() {
+                if (!this.must("canManageSettings", "Sem permissão para remover a logo.")) return;
+                document.getElementById("cfg-logo-url").value = "";
+                alert("Logo removida do campo. Clique em Salvar Configurações para confirmar no sistema.");
+            },
+            async exportBackup() {
+                if (!this.must("canManageSettings", "Sem permissão para gerar backup.")) return;
+                const backupPayload = {
+                    version: "1.0",
+                    exportedAt: nowIso(),
+                    app: "SANEGESTAO",
+                    data: normalizeState(db.state)
+                };
+                const dateLabel = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+                downloadTextFile(`backup_sanegestao_${dateLabel}.json`, JSON.stringify(backupPayload, null, 2));
+                db.addAuditLog("backup_exported", { exportedAt: backupPayload.exportedAt });
+                await db.save();
+                ui.renderAll();
+            },
+            async importBackup(e) {
+                if (!this.must("canManageSettings", "Sem permissão para importar backup.")) return;
+                const input = e?.target;
+                const file = input?.files?.[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const parsed = JSON.parse(text);
+                    const backupData = parsed?.data || parsed;
+                    if (!backupData || typeof backupData !== "object") {
+                        throw new Error("Arquivo de backup inválido.");
+                    }
+                    const confirmed = confirm("A restauração vai substituir os dados atuais do sistema por este backup. Deseja continuar?");
+                    if (!confirmed) return;
+                    db.state = normalizeState(backupData);
+                    db.addAuditLog("backup_restored", {
+                        fileName: file.name,
+                        restoredAt: nowIso()
+                    });
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(db.state));
+                    auth.refreshCurrentUser();
+                    await db.save();
+                    ui.applySettings();
+                    ui.renderAll();
+                    alert("Backup importado com sucesso. O sistema foi restaurado.");
+                } catch (err) {
+                    alert(`Não foi possível importar o backup.\n\nDetalhe: ${err.message}`);
+                } finally {
+                    if (input) input.value = "";
+                }
             },
             pdf(id) {
                 const { jsPDF } = window.jspdf;
@@ -2499,6 +3004,14 @@
                 auth.check();
 
                 document.getElementById("stock-search").addEventListener("input", () => ui.renderStock());
+                document.getElementById("stock-type-filter").addEventListener("change", (e) => {
+                    ui.stockTypeFilter = ui.normalizeFilterLabel(e.target.value);
+                    ui.renderStock();
+                });
+                document.getElementById("stock-classification-filter").addEventListener("change", (e) => {
+                    ui.stockClassificationFilter = ui.normalizeFilterLabel(e.target.value);
+                    ui.renderStock();
+                });
                 document.getElementById("input-global-search").addEventListener("input", () => ui.renderGlobalSearch());
                 document.getElementById("report-type").addEventListener("change", () => logic.refreshReportPreview());
                 document.getElementById("report-period").addEventListener("change", () => {
@@ -2531,7 +3044,8 @@
                     const u = document.getElementById("user").value.trim();
                     const p = document.getElementById("pass").value;
                     if (!auth.login(u, p)) {
-                        alert("Acesso inválido.\n\nVerifique usuário/senha.\nNo primeiro acesso use:\nUsuário: Claudinho\nSenha: Bobyemel01");
+                        document.getElementById("pass").value = "";
+                        alert("Acesso inválido.\n\nVerifique usuário e senha e tente novamente.");
                     }
                 };
             } catch (err) {
