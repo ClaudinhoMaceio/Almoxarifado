@@ -1202,7 +1202,7 @@
     <script>
         const APP_DB_PATH = "almoxarifado/database.json";
         const REMOTE_DATA_FOLDER_URL = "https://drive.google.com/drive/folders/1XrxLScRhIQ7iNciyWkoAHVaDFIhKYmUO?usp=drive_link";
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx72pTwOg99IDgWmFNB4SlLAkMTpCUSNWarMWHLbrfoe9C1NtFJYeZouq1vFmJOSrrC/exec";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwuwjzjRZ_1GFhg1byZZOxpcQ-eAy1takbdHLJtgWCjZDLU1P-d3QlglifcIVVHP7jHRA/exec";
         const STORAGE_KEY = "sanegestao_db";
         const THEME_KEY = "sanegestao_theme";
         const SESSION_KEY = "session_user";
@@ -1917,21 +1917,11 @@
                     return;
                 }
                 try {
-                    /* Sempre um arquivo JSON por armazém (ex.: wh_1.json) — não usa database.json único. */
-                    this.storageMode = "warehouse";
-                    const list = db.state.warehouses?.length ? db.state.warehouses : [{ id: "wh_1", name: "Armazém Principal" }];
-                    let lastErr = "";
-                    let allOk = true;
-                    for (const wh of list) {
-                        const initResp = await this.ensureWarehouseById(wh.id, wh.name || wh.id);
-                        if (!initResp?.ok) {
-                            allOk = false;
-                            lastErr = initResp?.error || `Falha ao preparar ${wh.name || wh.id}`;
-                            break;
-                        }
-                    }
-                    this.isReady = allOk;
-                    if (!this.isReady) this.setError(lastErr || "Aplicativo web não confirmou inicialização dos armazéns.");
+                    // Modo unificado: toda sincronização em database.json.
+                    this.storageMode = "main_database";
+                    const initResp = await this.ensureMainDatabase();
+                    this.isReady = !!initResp?.ok;
+                    if (!this.isReady) this.setError(initResp?.error || "Aplicativo web não confirmou inicialização da base principal.");
                     else this.clearError();
                     ui.updateCloudStatus(this.isReady ? "remote" : "local");
                 } catch (err) {
@@ -1958,29 +1948,29 @@
             async pushAll(state) {
                 if (!this.isConfigured() || !navigator.onLine) return;
                 try {
-                    const u = typeof auth !== "undefined" ? auth.currentUser : null;
-                    const canPushAll = !u || u.role === "admin" || u.warehouseId === "all";
-                    const whList = canPushAll
-                        ? (state.warehouses?.length ? state.warehouses : [])
-                        : (state.warehouses || []).filter((w) => w.id === u.warehouseId);
-                    if (!whList.length) throw new Error("Nenhum armazém autorizado para envio.");
-                    for (const wh of whList) {
-                        const payload = this.buildWarehousePayload(state, wh);
-                        const pushResp = await this.post({
-                            action: "push",
-                            warehouseId: wh.id,
-                            data: payload
-                        });
-                        if (!pushResp?.ok) throw new Error(pushResp?.error || `Falha ao salvar ${wh.name}`);
-                    }
+                    await this.pushMainDatabase(normalizeState(state));
                     this.isReady = true;
                     this.clearError();
                     ui.updateCloudStatus("remote");
                     return true;
                 } catch (err) {
                     try {
-                        // Fallback: conector legado baseado em database.json único.
-                        await this.pushMainDatabase(state);
+                        // Fallback legado: salva por armazém.
+                        const u = typeof auth !== "undefined" ? auth.currentUser : null;
+                        const canPushAll = !u || u.role === "admin" || u.warehouseId === "all";
+                        const whList = canPushAll
+                            ? (state.warehouses?.length ? state.warehouses : [])
+                            : (state.warehouses || []).filter((w) => w.id === u.warehouseId);
+                        if (!whList.length) throw new Error("Nenhum armazém autorizado para envio.");
+                        for (const wh of whList) {
+                            const payload = this.buildWarehousePayload(state, wh);
+                            const pushResp = await this.post({
+                                action: "push",
+                                warehouseId: wh.id,
+                                data: payload
+                            });
+                            if (!pushResp?.ok) throw new Error(pushResp?.error || `Falha ao salvar ${wh.name}`);
+                        }
                         this.isReady = true;
                         this.clearError();
                         ui.updateCloudStatus("remote");
@@ -1998,39 +1988,37 @@
             async pullAll(warehouses) {
                 if (!this.isConfigured() || !navigator.onLine) return null;
                 try {
-                    const fullList = warehouses?.length ? warehouses : [{ id: "wh_1", name: "Armazém Principal" }];
-                    let list = fullList;
-                    // Se houver armazéns novos em database.json, incorpora para puxar todos os JSONs.
-                    try {
-                        const mainData = await this.pullMainDatabase();
-                        const mainWh = Array.isArray(mainData?.warehouses) ? mainData.warehouses : [];
-                        const byId = new Map();
-                        [...fullList, ...mainWh].forEach((w) => {
-                            if (w?.id) byId.set(w.id, { id: w.id, name: w.name || w.id });
-                        });
-                        list = Array.from(byId.values());
-                    } catch (_) {
-                        // Segue com a lista local caso pullMainDatabase falhe.
-                    }
-                    if (!list.length) throw new Error("Usuário sem armazém vinculado para sincronização.");
-                    const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], suppliers: [], chatMessages: [], apiEmployees: [], apiIssues: [], settings: {} });
-                    for (const wh of list) {
-                        const result = await this.get("pull", wh.id);
-                        if (!result?.ok) throw new Error(result?.error || `Falha ao baixar armazém ${wh.id}.`);
-                        if (result.data) this.mergeWarehousePayload(merged, result.data);
-                    }
+                    const merged = await this.pullMainDatabase();
                     this.isReady = true;
                     this.clearError();
                     ui.updateCloudStatus("remote");
                     return normalizeState(merged);
                 } catch (err) {
                     try {
-                        // Fallback: leitura de database.json único no Google Drive.
-                        const mainData = await this.pullMainDatabase();
+                        // Fallback legado: leitura por arquivo de armazém.
+                        const fullList = warehouses?.length ? warehouses : [{ id: "wh_1", name: "Armazém Principal" }];
+                        let list = fullList;
+                        try {
+                            const listResp = await this.get("listWarehouses", "wh_1");
+                            if (listResp?.ok && Array.isArray(listResp.warehouses)) {
+                                const byId = new Map();
+                                [...list, ...listResp.warehouses].forEach((w) => {
+                                    if (w?.id) byId.set(w.id, { id: w.id, name: w.name || w.id });
+                                });
+                                list = Array.from(byId.values());
+                            }
+                        } catch (_) {}
+                        if (!list.length) throw new Error("Usuário sem armazém vinculado para sincronização.");
+                        const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], suppliers: [], chatMessages: [], apiEmployees: [], apiIssues: [], settings: {} });
+                        for (const wh of list) {
+                            const result = await this.get("pull", wh.id);
+                            if (!result?.ok) throw new Error(result?.error || `Falha ao baixar armazém ${wh.id}.`);
+                            if (result.data) this.mergeWarehousePayload(merged, result.data);
+                        }
                         this.isReady = true;
                         this.clearError();
                         ui.updateCloudStatus("remote");
-                        return normalizeState(mainData);
+                        return normalizeState(merged);
                     } catch (fallbackErr) {
                         this.isReady = false;
                         this.setError(fallbackErr.message || err.message);
@@ -4510,10 +4498,20 @@
 
         function bindNav() {
             document.querySelectorAll(".nav-btn").forEach((btn) => {
-                btn.addEventListener("click", () => {
+                btn.addEventListener("click", async () => {
                     const tab = btn.dataset.tab;
                     if (!ui.isTabAllowed(tab)) return;
                     ui.activateTab(tab);
+                    // Ao abrir "Pedidos", força uma leitura imediata da nuvem
+                    // para reduzir atraso de visualização entre usuário e admin.
+                    if (tab === "requests" && auth.currentUser && navigator.onLine) {
+                        try {
+                            await db.refreshFromCloud();
+                            if (ui.currentTab === "requests") ui.renderOrders();
+                        } catch (_) {
+                            // Mantém navegação local mesmo se a nuvem falhar.
+                        }
+                    }
                 });
             });
         }

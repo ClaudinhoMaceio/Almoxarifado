@@ -28,6 +28,7 @@ function doGet(e) {
     if (action === "ping") return jsonOutput({ ok: true, serverTime: new Date().toISOString() });
     if (action === "pull") return jsonOutput(pullWarehouseData(warehouseId));
     if (action === "pullMainDatabase") return jsonOutput(pullMainDatabase());
+    if (action === "listWarehouses") return jsonOutput(listWarehousesFromFolder());
     if (action === "initWarehouse") return jsonOutput(initWarehouseOnce(warehouseId, warehouseId));
     if (action === "initMainDatabase") return jsonOutput(initMainDatabase(getMainDbFilename()));
 
@@ -303,6 +304,32 @@ function pullMainDatabase() {
   const resolved = getOrCreateFile(folder, getMainDbFilename(), defaultState());
   const parsed = readJsonFile(resolved.file);
   return { ok: true, data: normalizeState(parsed), created: resolved.created };
+}
+
+function listWarehousesFromFolder() {
+  const folder = ensureRootFolder();
+  const files = folder.getFiles();
+  const out = [];
+  const mainName = getMainDbFilename().toLowerCase();
+  while (files.hasNext()) {
+    const file = files.next();
+    const name = String(file.getName() || "");
+    const lower = name.toLowerCase();
+    if (!lower.endsWith(".json")) continue;
+    if (lower === mainName) continue;
+    const warehouseId = name.replace(/\.json$/i, "");
+    if (!warehouseId) continue;
+    out.push({
+      id: warehouseId,
+      fileName: name,
+      fileId: file.getId(),
+      updatedAt: file.getLastUpdated().toISOString()
+    });
+  }
+  out.sort(function (a, b) {
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
+  return { ok: true, warehouses: out };
 }
 
 function pushMainDatabase(fileName, data) {
