@@ -788,6 +788,7 @@
                 <button data-tab="requests" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">
                     Pedidos <span id="badge-orders" class="hidden bg-red-500 text-white text-[10px] px-2 rounded-full">0</span>
                 </button>
+                <button data-tab="api-control" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Controle de IPI</button>
                 <button id="nav-reports" data-tab="reports" class="hidden nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-800 text-slate-400">Relatórios</button>
                 <div id="admin-menu" class="hidden pt-6 space-y-2">
                     <p class="text-[10px] font-bold text-slate-500 uppercase px-4 mb-2">Administração</p>
@@ -916,6 +917,58 @@
                     <button onclick="logic.downloadOrdersPdf()" class="bg-slate-800 text-white px-5 py-2 rounded-xl text-xs font-bold">Baixar PDF dos Pedidos</button>
                 </div>
                 <div id="list-requests" class="grid gap-4"></div>
+            </div>
+
+            <div id="tab-api-control" class="tab-content space-y-6">
+                <div class="bg-white rounded-3xl shadow-sm p-6">
+                    <h3 class="text-xl font-bold mb-1">Controle de IPI por Funcionário</h3>
+                    <p class="text-sm text-slate-500 mb-6">Cadastre funcionários que recebem IPI, registre entregas/trocas com data e gere relatório individual em PDF.</p>
+                    <div class="grid lg:grid-cols-2 gap-6">
+                        <form id="api-employee-form" onsubmit="logic.addApiEmployee(event)" class="space-y-3 border border-slate-200 rounded-2xl p-4">
+                            <p class="text-xs font-bold uppercase text-slate-500">Cadastro de funcionário</p>
+                            <input type="text" id="api-emp-name" required placeholder="Nome completo do funcionário" class="w-full p-3 border rounded-xl">
+                            <input type="text" id="api-emp-doc" placeholder="Matrícula / Documento" class="w-full p-3 border rounded-xl">
+                            <input type="text" id="api-emp-role" placeholder="Função (opcional)" class="w-full p-3 border rounded-xl">
+                            <select id="api-emp-wh" class="w-full p-3 border rounded-xl"></select>
+                            <button type="submit" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold">Cadastrar Funcionário</button>
+                        </form>
+                        <form id="api-issue-form" onsubmit="logic.addApiIssue(event)" class="space-y-3 border border-slate-200 rounded-2xl p-4">
+                            <p class="text-xs font-bold uppercase text-slate-500">Lançamento de IPI (entrega/troca)</p>
+                            <select id="api-issue-employee" required class="w-full p-3 border rounded-xl"></select>
+                            <select id="api-issue-item-id" required class="w-full p-3 border rounded-xl"></select>
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="number" id="api-issue-qty" min="1" value="1" required class="w-full p-3 border rounded-xl">
+                                <input type="date" id="api-issue-date" required class="w-full p-3 border rounded-xl">
+                            </div>
+                            <textarea id="api-issue-notes" rows="2" placeholder="Observações (ex.: troca por desgaste)" class="w-full p-3 border rounded-xl"></textarea>
+                            <button type="submit" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">Registrar IPI</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="bg-white rounded-3xl shadow-sm p-6">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                        <h4 class="font-bold text-lg">Relatório por funcionário</h4>
+                        <div class="flex gap-2">
+                            <select id="api-report-employee" class="p-3 border rounded-xl min-w-[260px]"></select>
+                            <button type="button" onclick="logic.downloadApiEmployeeReport()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold">Gerar PDF</button>
+                        </div>
+                    </div>
+                    <div class="overflow-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                <tr>
+                                    <th class="px-4 py-3">Data</th>
+                                    <th class="px-4 py-3">Funcionário</th>
+                                    <th class="px-4 py-3">IPI</th>
+                                    <th class="px-4 py-3">Qtd</th>
+                                    <th class="px-4 py-3">Observações</th>
+                                    <th class="px-4 py-3 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="api-issues-table" class="text-sm divide-y divide-slate-50"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <div id="tab-reports" class="tab-content space-y-6">
@@ -1343,7 +1396,13 @@
                 order_deleted: "Pedido excluído pelo administrador",
                 supplier_created: "Fornecedor cadastrado",
                 supplier_deleted: "Fornecedor removido",
-                supplier_updated: "Fornecedor atualizado"
+                supplier_updated: "Fornecedor atualizado",
+                api_employee_created: "Funcionário de IPI cadastrado",
+                api_issue_registered: "Lançamento de IPI registrado",
+                api_issue_deleted: "Lançamento de IPI excluído",
+                ipi_employee_created: "Funcionário de IPI cadastrado",
+                ipi_issue_registered: "Lançamento de IPI registrado",
+                ipi_issue_deleted: "Lançamento de IPI excluído"
             };
             return map[action] || action;
         }
@@ -1354,6 +1413,7 @@
             if (a.startsWith("stock_") || a === "item_created" || a === "item_min_updated") return "border-l-emerald-500";
             if (a.startsWith("user_")) return "border-l-violet-500";
             if (a.startsWith("warehouse_")) return "border-l-amber-500";
+            if (a.startsWith("api_") || a.startsWith("ipi_")) return "border-l-fuchsia-500";
             if (a === "settings_updated") return "border-l-cyan-500";
             if (a === "login" || a === "logout") return "border-l-slate-400";
             return "border-l-slate-300";
@@ -1400,7 +1460,9 @@
                 logs: mergeCollection(local.logs, remote.logs, "id"),
                 replenishments: mergeCollection(local.replenishments, remote.replenishments, "id"),
                 suppliers: mergeCollection(local.suppliers, remote.suppliers, "id"),
-                chatMessages: mergeCollection(local.chatMessages || [], remote.chatMessages || [], "id")
+                chatMessages: mergeCollection(local.chatMessages || [], remote.chatMessages || [], "id"),
+                apiEmployees: mergeCollection(local.apiEmployees || [], remote.apiEmployees || [], "id"),
+                apiIssues: mergeCollection(local.apiIssues || [], remote.apiIssues || [], "id")
             });
         }
 
@@ -1474,6 +1536,8 @@
             state.replenishments = Array.isArray(state.replenishments) ? state.replenishments : [];
             state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
             state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : [];
+            state.apiEmployees = Array.isArray(state.apiEmployees) ? state.apiEmployees : [];
+            state.apiIssues = Array.isArray(state.apiIssues) ? state.apiIssues : [];
             state.settings = state.settings || { systemName: "SANEGESTÃO", primaryColor: "#0284c7", reportLogoDataUrl: "" };
             if (typeof state.settings.reportLogoDataUrl !== "string") state.settings.reportLogoDataUrl = "";
             state.unitCatalog = Array.isArray(state.unitCatalog) ? state.unitCatalog : defaultUnitCatalog();
@@ -1516,6 +1580,7 @@
             state.items = state.items.map((i) => ({ ...i, unit: i.unit || "UN" }));
             state.items = state.items.map((i) => ({ ...i, area: i.area || "PROPRIO" }));
             state.items = state.items.map((i) => ({ ...i, code: i.code || "" }));
+            state.items = state.items.map((i) => ({ ...i, expiryDate: i.expiryDate || null }));
             state.orders = state.orders.map((o) => {
                 if (Array.isArray(o.lines)) {
                     return {
@@ -1557,7 +1622,8 @@
                 qty: Number(r.qty || 0),
                 unit: r.unit || "UN",
                 date: r.date || nowIso(),
-                supplierId: r.supplierId || ""
+                supplierId: r.supplierId || "",
+                expiryDate: r.expiryDate || null
             }));
             state.suppliers = state.suppliers.map((s) => ({
                 ...s,
@@ -1580,6 +1646,31 @@
             }));
             state.chatMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
             if (state.chatMessages.length > 500) state.chatMessages = state.chatMessages.slice(-500);
+            state.apiEmployees = state.apiEmployees.map((e) => ({
+                id: e.id || uid("apemp"),
+                name: String(e.name || "").trim() || "Funcionário",
+                document: String(e.document || "").trim(),
+                roleName: String(e.roleName || "").trim(),
+                warehouseId: String(e.warehouseId || "all"),
+                active: e.active !== false,
+                createdAt: e.createdAt || nowIso(),
+                updatedAt: e.updatedAt || e.createdAt || nowIso()
+            }));
+            state.apiIssues = state.apiIssues.map((r) => ({
+                id: r.id || uid("aprec"),
+                employeeId: String(r.employeeId || "").trim(),
+                employeeName: String(r.employeeName || "").trim(),
+                warehouseId: String(r.warehouseId || "all"),
+                apiName: String(r.apiName || "").trim() || "IPI",
+                qty: Math.max(1, Number(r.qty || 1)),
+                issueDate: r.issueDate || nowIso(),
+                notes: String(r.notes || "").trim(),
+                user: String(r.user || "").trim(),
+                userName: String(r.userName || "").trim(),
+                createdAt: r.createdAt || nowIso(),
+                updatedAt: r.updatedAt || r.createdAt || nowIso()
+            }));
+            state.apiIssues.sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime());
             state.unitCatalog = [...new Set(state.unitCatalog.map((u) => String(u || "").toUpperCase()).filter(Boolean))];
             return state;
         }
@@ -1730,7 +1821,9 @@
                         const wh = log.details?.warehouseId || log.warehouseId;
                         return !wh || wh === warehouse.id;
                     }),
-                    chatMessages: fullState.chatMessages || []
+                    chatMessages: fullState.chatMessages || [],
+                    apiEmployees: (fullState.apiEmployees || []).filter((e) => e.warehouseId === "all" || e.warehouseId === warehouse.id),
+                    apiIssues: (fullState.apiIssues || []).filter((r) => r.warehouseId === "all" || r.warehouseId === warehouse.id)
                 };
             },
             mergeWarehousePayload(target, payload) {
@@ -1748,6 +1841,10 @@
                 (payload.suppliers || []).forEach((sp) => upsert(target.suppliers, sp, "id"));
                 if (!Array.isArray(target.chatMessages)) target.chatMessages = [];
                 (payload.chatMessages || []).forEach((cm) => upsert(target.chatMessages, cm, "id"));
+                if (!Array.isArray(target.apiEmployees)) target.apiEmployees = [];
+                (payload.apiEmployees || []).forEach((emp) => upsert(target.apiEmployees, emp, "id"));
+                if (!Array.isArray(target.apiIssues)) target.apiIssues = [];
+                (payload.apiIssues || []).forEach((rec) => upsert(target.apiIssues, rec, "id"));
                 if (payload.settings) target.settings = { ...target.settings, ...payload.settings };
                 if (Array.isArray(payload.unitCatalog)) {
                     target.unitCatalog = [...new Set([...(target.unitCatalog || []), ...payload.unitCatalog])];
@@ -1810,8 +1907,6 @@
                         : (state.warehouses || []).filter((w) => w.id === u.warehouseId);
                     if (!whList.length) throw new Error("Nenhum armazém autorizado para envio.");
                     for (const wh of whList) {
-                        const ensureResp = await this.ensureWarehouseById(wh.id, wh.name);
-                        if (!ensureResp?.ok) throw new Error(ensureResp?.error || `Falha ao inicializar ${wh.name}`);
                         const payload = this.buildWarehousePayload(state, wh);
                         const pushResp = await this.post({
                             action: "push",
@@ -1845,14 +1940,13 @@
             async pullAll(warehouses) {
                 if (!this.isConfigured() || !navigator.onLine) return null;
                 try {
-                    const u = typeof auth !== "undefined" ? auth.currentUser : null;
                     const fullList = warehouses?.length ? warehouses : [{ id: "wh_1", name: "Armazém Principal" }];
-                    const canPullAll = !u || u.role === "admin" || u.warehouseId === "all";
-                    const list = canPullAll ? fullList : fullList.filter((w) => w.id === u.warehouseId);
+                    // Sempre baixa todos os armazéns para manter visão consistente
+                    // entre perfis e evitar "sumiço" de dados por filtro de sync.
+                    const list = fullList;
                     if (!list.length) throw new Error("Usuário sem armazém vinculado para sincronização.");
-                    const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], suppliers: [], settings: {} });
+                    const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], suppliers: [], chatMessages: [], apiEmployees: [], apiIssues: [], settings: {} });
                     for (const wh of list) {
-                        await this.ensureWarehouseById(wh.id, wh.name || wh.id);
                         const result = await this.get("pull", wh.id);
                         if (result?.ok && result.data) this.mergeWarehousePayload(merged, result.data);
                     }
@@ -1890,6 +1984,8 @@
                 replenishments: [],
                 suppliers: [],
                 chatMessages: [],
+                apiEmployees: [],
+                apiIssues: [],
                 settings: { systemName: "SANEGESTÃO", primaryColor: "#0284c7", reportLogoDataUrl: "" },
                 unitCatalog: defaultUnitCatalog()
             }),
@@ -2086,8 +2182,8 @@
                 return auth.currentUser?.role === "usuario";
             },
             getAllowedTabs() {
-                if (this.isBasicUser()) return ["stock", "requests"];
-                const tabs = ["dash", "stock", "global", "requests", "admin-wh", "admin-users"];
+                if (this.isBasicUser()) return ["stock", "requests", "api-control"];
+                const tabs = ["dash", "stock", "global", "requests", "api-control", "admin-wh", "admin-users"];
                 if (auth.currentUser?.role === "admin") tabs.push("admin-suppliers");
                 tabs.push("admin-config");
                 if (auth.hasPermission("canManageOrders")) tabs.push("reports");
@@ -2243,6 +2339,7 @@
                 logic.updateThemeToggleUi();
                 this.stockScope = "all";
                 this.renderAll();
+                db.refreshFromCloud().catch(() => {});
                 if (this.isBasicUser()) this.activateTab("stock");
                 else this.currentTab = document.querySelector(".nav-btn.nav-active")?.dataset?.tab || "dash";
             },
@@ -2278,7 +2375,7 @@
                             <form onsubmit="logic.addItem(event)" class="space-y-4">
                                 <input type="text" id="m-code" placeholder="Código do material (opcional, obrigatório para SABESP)" class="w-full p-3 border rounded-xl">
                                 <input type="text" id="m-name" placeholder="Nome do Material" required class="w-full p-3 border rounded-xl">
-                                <select id="m-cat" class="w-full p-3 border rounded-xl">
+                                <select id="m-cat" onchange="logic.toggleEpiExpiryInput(this.value)" class="w-full p-3 border rounded-xl">
                                     <option>MATERIAL</option>
                                     <option>EQUIPAMENTO</option>
                                     <option>PEÇA</option>
@@ -2297,6 +2394,10 @@
                                 <div class="grid grid-cols-2 gap-4">
                                     <input type="number" id="m-qty" min="0" placeholder="Qtd Inicial" required class="w-full p-3 border rounded-xl">
                                     <input type="number" id="m-min" min="0" placeholder="Qtd Mínima" required class="w-full p-3 border rounded-xl">
+                                </div>
+                                <div id="m-epi-expiry-wrap" class="hidden">
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Data de vencimento do IPI</label>
+                                    <input type="date" id="m-epi-expiry" class="w-full p-3 border rounded-xl mt-1">
                                 </div>
                                 <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">SALVAR</button>
                                 <button type="button" onclick="ui.closeModal()" class="w-full text-slate-400 py-2">Cancelar</button>
@@ -2464,6 +2565,12 @@
                                     <label class="text-xs font-bold text-slate-500 uppercase">Data da movimentação</label>
                                     <input type="date" id="se-date" required class="w-full p-3 border rounded-xl mt-1" value="${new Date().toISOString().slice(0, 10)}">
                                 </div>
+                                ${item.category === "EPI" ? `
+                                <div>
+                                    <label class="text-xs font-bold text-slate-500 uppercase">Novo vencimento do IPI (opcional)</label>
+                                    <input type="date" id="se-expiry" class="w-full p-3 border rounded-xl mt-1" value="${item.expiryDate ? new Date(item.expiryDate).toISOString().slice(0, 10) : ""}">
+                                </div>
+                                ` : ""}
                                 <div>
                                     <label class="text-xs font-bold text-slate-500 uppercase">Fornecedor (opcional)</label>
                                     <select id="se-supplier" class="w-full p-3 border rounded-xl mt-1">${supOpts.join("")}</select>
@@ -2579,6 +2686,7 @@
                 this.renderStock();
                 this.renderGlobalSearch();
                 this.renderRequests();
+                this.renderApiControl();
                 this.renderAdminUsers();
                 this.renderAdminWarehouses();
                 this.renderReportFilters();
@@ -2642,18 +2750,38 @@
                 `;
             },
             userItemsScope() {
-                return auth.currentUser.role === "admin" || auth.currentUser.warehouseId === "all"
-                    ? db.state.items
-                    : db.state.items.filter((i) => i.warehouseId === auth.currentUser.warehouseId);
+                if (auth.currentUser.role === "admin" || auth.currentUser.warehouseId === "all") return db.state.items;
+                const byId = db.state.items.filter((i) => i.warehouseId === auth.currentUser.warehouseId);
+                if (byId.length) return byId;
+                // Fallback para casos legados onde o vínculo de ID divergiu.
+                const userWh = db.state.warehouses.find((w) => w.id === auth.currentUser.warehouseId);
+                if (!userWh) return byId;
+                const norm = (v) => String(v || "").trim().toLowerCase();
+                const userWhName = norm(userWh.name);
+                const equivalentWhIds = db.state.warehouses
+                    .filter((w) => norm(w.name) === userWhName)
+                    .map((w) => w.id);
+                return db.state.items.filter((i) => equivalentWhIds.includes(i.warehouseId));
             },
             userOrdersScope() {
                 if (auth.currentUser.role === "admin" || auth.currentUser.warehouseId === "all") return db.state.orders;
                 if (auth.hasPermission("canManageOrders")) {
-                    return db.state.orders.filter((o) => o.warehouseId === auth.currentUser.warehouseId);
+                    const own = db.state.orders.filter((o) => o.warehouseId === auth.currentUser.warehouseId);
+                    if (own.length) return own;
+                    const userWh = db.state.warehouses.find((w) => w.id === auth.currentUser.warehouseId);
+                    if (!userWh) return own;
+                    const norm = (v) => String(v || "").trim().toLowerCase();
+                    const ids = db.state.warehouses.filter((w) => norm(w.name) === norm(userWh.name)).map((w) => w.id);
+                    return db.state.orders.filter((o) => ids.includes(o.warehouseId));
                 }
                 return db.state.orders.filter((o) => {
                     if (o.requesterUserId !== auth.currentUser.user) return false;
-                    return o.warehouseId === auth.currentUser.warehouseId;
+                    if (o.warehouseId === auth.currentUser.warehouseId) return true;
+                    const userWh = db.state.warehouses.find((w) => w.id === auth.currentUser.warehouseId);
+                    if (!userWh) return false;
+                    const orderWh = db.state.warehouses.find((w) => w.id === o.warehouseId);
+                    const norm = (v) => String(v || "").trim().toLowerCase();
+                    return orderWh && norm(orderWh.name) === norm(userWh.name);
                 });
             },
             updateStats() {
@@ -2662,6 +2790,13 @@
                 const pendingOrders = ordersScope.filter((o) => o.status === "pending").length;
                 const deliveredToday = ordersScope.filter((o) => o.status === "delivered" && new Date(o.date).toDateString() === new Date().toDateString()).length;
                 const lowItems = items.filter((i) => i.qty <= i.minQty);
+                const nowTs = Date.now();
+                const epiExpiryAlerts = items.filter((i) => {
+                    if (i.category !== "EPI" || !i.expiryDate) return false;
+                    const ts = new Date(i.expiryDate).getTime();
+                    if (!Number.isFinite(ts)) return false;
+                    return ts <= nowTs + (30 * 24 * 60 * 60 * 1000);
+                });
                 const whStat = auth.currentUser.role === "admin" || auth.currentUser.warehouseId === "all"
                     ? db.state.warehouses.length
                     : 1;
@@ -2681,7 +2816,7 @@
                     else animateStatEl(el, prev, n, 580);
                 };
                 setStat("stat-total", items.length);
-                setStat("stat-alerts", lowItems.length);
+                setStat("stat-alerts", lowItems.length + epiExpiryAlerts.length);
                 setStat("stat-orders", pendingOrders);
                 setStat("stat-wh", whStat);
                 setStat("stat-delivered", deliveredToday);
@@ -2703,6 +2838,15 @@
                         return `<div class="bg-white border border-amber-200 rounded-xl p-3"><b>${i.name}</b> está abaixo do mínimo (${i.qty}/${i.minQty}) - ${wh ? wh.name : "Não disponível"}</div>`;
                     }).join("");
                 }
+                if (epiExpiryAlerts.length) {
+                    const expiryHtml = epiExpiryAlerts.slice(0, 6).map((i) => {
+                        const expTs = new Date(i.expiryDate).getTime();
+                        const days = Math.ceil((expTs - nowTs) / (24 * 60 * 60 * 1000));
+                        const when = days < 0 ? "Vencido" : (days === 0 ? "Vence hoje" : `Vence em ${days} dia(s)`);
+                        return `<div class="bg-white border border-red-200 rounded-xl p-3"><b>${i.name}</b> (${i.qty} ${i.unit || "UN"}) - ${when}</div>`;
+                    }).join("");
+                    alertBox.innerHTML += expiryHtml;
+                }
             },
             renderStock() {
                 const tbody = document.getElementById("table-stock");
@@ -2710,6 +2854,15 @@
                 const items = this.userItemsScope();
                 const canRequest = auth.hasPermission("canRequestItems");
                 const canOutputItem = (item) => canRequest && item.category === "MATERIAL";
+                const expiryLabel = (item) => {
+                    if (item.category !== "EPI" || !item.expiryDate) return "";
+                    const ts = new Date(item.expiryDate).getTime();
+                    if (!Number.isFinite(ts)) return "";
+                    const days = Math.ceil((ts - Date.now()) / (24 * 60 * 60 * 1000));
+                    const when = days < 0 ? "VENCIDO" : (days === 0 ? "VENCE HOJE" : `VENCE EM ${days}D`);
+                    const color = days < 0 ? "text-red-600" : (days <= 30 ? "text-amber-600" : "text-emerald-600");
+                    return `<div class="text-[10px] font-bold mt-1 ${color}">${when}</div>`;
+                };
                 const col = (key) => auth.showStockColumn(key);
                 const thMap = [
                     ["viewStock_code", "th-stock-code"],
@@ -2745,6 +2898,7 @@
                             <span class="px-2 py-1 rounded-full text-[10px] font-bold ${i.qty <= i.minQty ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}">
                                 ${i.qty <= i.minQty ? "BAIXO" : "OK"}
                             </span>
+                            ${expiryLabel(i)}
                         </td>`
                     : ""}
                         ${col("viewStock_entryCol")
@@ -2953,6 +3107,84 @@
                         ${s.notes ? `<p class="text-xs text-slate-600 mt-1">${esc(s.notes)}</p>` : ""}
                     </div>
                 `).join("");
+            },
+            renderApiControl() {
+                const employeeWh = document.getElementById("api-emp-wh");
+                const issueEmployee = document.getElementById("api-issue-employee");
+                const issueItem = document.getElementById("api-issue-item-id");
+                const reportEmployee = document.getElementById("api-report-employee");
+                const table = document.getElementById("api-issues-table");
+                if (!employeeWh || !issueEmployee || !issueItem || !reportEmployee || !table) return;
+                const prevIssueEmployee = issueEmployee.value || "";
+                const prevIssueItem = issueItem.value || "";
+                const prevReportEmployee = reportEmployee.value || "";
+
+                const user = auth.currentUser;
+                if (!user) return;
+                const canGlobal = user.role === "admin" || user.warehouseId === "all";
+                const canManageApi = auth.hasPermission("canManageStock");
+                const myWarehouse = user.warehouseId;
+
+                const whOptions = db.state.warehouses
+                    .filter((w) => canGlobal || w.id === myWarehouse)
+                    .map((w) => `<option value="${w.id}">${w.name}</option>`)
+                    .join("");
+                employeeWh.innerHTML = `<option value="all">Todos os armazéns</option>${whOptions}`;
+                if (!canGlobal) employeeWh.value = myWarehouse;
+                employeeWh.disabled = !canManageApi || !canGlobal;
+
+                const employees = (db.state.apiEmployees || []).filter((e) => canGlobal || e.warehouseId === "all" || e.warehouseId === myWarehouse);
+                const employeeOptions = employees.map((e) => {
+                    const wh = e.warehouseId === "all"
+                        ? "Todos"
+                        : (db.state.warehouses.find((w) => w.id === e.warehouseId)?.name || e.warehouseId);
+                    return `<option value="${e.id}">${e.name}${e.roleName ? ` - ${e.roleName}` : ""} (${wh})</option>`;
+                }).join("");
+
+                issueEmployee.innerHTML = `<option value="">Selecione o funcionário</option>${employeeOptions}`;
+                issueEmployee.disabled = !canManageApi;
+                const epiOptions = (db.state.items || [])
+                    .filter((i) => i.category === "EPI")
+                    .filter((i) => canGlobal || i.warehouseId === myWarehouse)
+                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"))
+                    .map((i) => {
+                        const whName = db.state.warehouses.find((w) => w.id === i.warehouseId)?.name || i.warehouseId;
+                        return `<option value="${i.id}">${i.name} - saldo ${Number(i.qty || 0)} ${i.unit || "UN"} (${whName})</option>`;
+                    }).join("");
+                issueItem.innerHTML = `<option value="">Selecione o IPI no estoque</option>${epiOptions}`;
+                issueItem.disabled = !canManageApi;
+                reportEmployee.innerHTML = `<option value="">Todos os funcionários</option>${employeeOptions}`;
+                if (prevIssueEmployee && employees.some((e) => e.id === prevIssueEmployee)) issueEmployee.value = prevIssueEmployee;
+                if (prevIssueItem && (db.state.items || []).some((i) => i.id === prevIssueItem)) issueItem.value = prevIssueItem;
+                if (prevReportEmployee && employees.some((e) => e.id === prevReportEmployee)) reportEmployee.value = prevReportEmployee;
+
+                const selectedEmployee = reportEmployee.value || "";
+                const issues = (db.state.apiIssues || [])
+                    .filter((r) => canGlobal || r.warehouseId === "all" || r.warehouseId === myWarehouse)
+                    .filter((r) => !selectedEmployee || r.employeeId === selectedEmployee)
+                    .sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime());
+
+                if (!issues.length) {
+                    table.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-slate-400">Nenhum lançamento de IPI para o filtro atual.</td></tr>';
+                } else {
+                    table.innerHTML = issues.map((r) => `
+                        <tr>
+                            <td class="px-4 py-3">${new Date(r.issueDate).toLocaleDateString("pt-BR")}</td>
+                            <td class="px-4 py-3">${escapeHtml(r.employeeName || "-")}</td>
+                            <td class="px-4 py-3">${escapeHtml(r.apiName || "-")}</td>
+                            <td class="px-4 py-3">${Number(r.qty || 1)}</td>
+                            <td class="px-4 py-3">${escapeHtml(r.notes || "-")}</td>
+                            <td class="px-4 py-3 text-right">
+                                ${canManageApi ? `<button onclick="logic.deleteApiIssue('${r.id}')" class="bg-red-100 text-red-600 px-3 py-1 rounded-lg text-xs font-bold">Excluir</button>` : '<span class="text-xs text-slate-400">Somente leitura</span>'}
+                            </td>
+                        </tr>
+                    `).join("");
+                }
+
+                const empForm = document.getElementById("api-employee-form");
+                const issueForm = document.getElementById("api-issue-form");
+                if (empForm) empForm.classList.toggle("opacity-60", !canManageApi);
+                if (issueForm) issueForm.classList.toggle("opacity-60", !canManageApi);
             },
             renderAdminUsers() {
                 const tbody = document.getElementById("table-users");
@@ -3232,12 +3464,14 @@
                 const qty = Number(document.getElementById("se-qty")?.value);
                 const newMinQty = Number(document.getElementById("se-min")?.value);
                 const dateStr = document.getElementById("se-date")?.value;
+                const expiryStr = String(document.getElementById("se-expiry")?.value || "").trim();
                 const supplierId = document.getElementById("se-supplier")?.value || "";
                 if (!Number.isFinite(qty) || qty <= 0) return alert("Informe uma quantidade válida maior que zero.");
                 if (!Number.isFinite(newMinQty) || newMinQty < 0) return alert("Informe um estoque mínimo válido (0 ou maior).");
                 if (!dateStr) return alert("Informe a data.");
                 item.qty = Number(item.qty || 0) + qty;
                 item.minQty = Math.floor(newMinQty);
+                if (item.category === "EPI" && expiryStr) item.expiryDate = new Date(`${expiryStr}T12:00:00`).toISOString();
                 item.updatedAt = nowIso();
                 db.state.replenishments.push({
                     id: uid("rep"),
@@ -3249,6 +3483,7 @@
                     unit: item.unit || "UN",
                     date: new Date(`${dateStr}T12:00:00`).toISOString(),
                     supplierId: supplierId || "",
+                    expiryDate: item.category === "EPI" && expiryStr ? new Date(`${expiryStr}T12:00:00`).toISOString() : null,
                     user: auth.currentUser?.user || "sistema",
                     userName: auth.currentUser?.name || "Sistema",
                     updatedAt: nowIso()
@@ -3295,6 +3530,144 @@
                 db.addAuditLog("supplier_deleted", { supplierId });
                 await db.save();
                 ui.renderSuppliers();
+            },
+            async addApiEmployee(e) {
+                e.preventDefault();
+                if (!this.must("canManageStock", "Sem permissão para cadastrar funcionários de IPI.")) return;
+                const name = String(document.getElementById("api-emp-name")?.value || "").trim();
+                const documentId = String(document.getElementById("api-emp-doc")?.value || "").trim();
+                const roleName = String(document.getElementById("api-emp-role")?.value || "").trim();
+                const whValue = String(document.getElementById("api-emp-wh")?.value || "all");
+                if (!name) return alert("Informe o nome do funcionário.");
+                if (!Array.isArray(db.state.apiEmployees)) db.state.apiEmployees = [];
+                const normalizedName = name.toLowerCase();
+                const already = db.state.apiEmployees.some((emp) =>
+                    String(emp.name || "").trim().toLowerCase() === normalizedName
+                    && String(emp.warehouseId || "all") === whValue
+                );
+                if (already) return alert("Funcionário já cadastrado para este armazém.");
+                const employee = {
+                    id: uid("apemp"),
+                    name,
+                    document: documentId,
+                    roleName,
+                    warehouseId: whValue,
+                    active: true,
+                    createdAt: nowIso(),
+                    updatedAt: nowIso()
+                };
+                db.state.apiEmployees.push(employee);
+                db.addAuditLog("api_employee_created", {
+                    employeeId: employee.id,
+                    employeeName: employee.name,
+                    warehouseId: employee.warehouseId
+                });
+                await db.save();
+                e.target.reset();
+                if (!auth.currentUser || (auth.currentUser.role !== "admin" && auth.currentUser.warehouseId !== "all")) {
+                    const ownWh = document.getElementById("api-emp-wh");
+                    if (ownWh) ownWh.value = auth.currentUser.warehouseId;
+                }
+                ui.renderApiControl();
+            },
+            async addApiIssue(e) {
+                e.preventDefault();
+                if (!this.must("canManageStock", "Sem permissão para registrar entrega de IPI.")) return;
+                const employeeId = String(document.getElementById("api-issue-employee")?.value || "");
+                const itemId = String(document.getElementById("api-issue-item-id")?.value || "");
+                const qty = Math.max(1, Number(document.getElementById("api-issue-qty")?.value || 1));
+                const issueDate = String(document.getElementById("api-issue-date")?.value || "");
+                const notes = String(document.getElementById("api-issue-notes")?.value || "").trim();
+                if (!employeeId) return alert("Selecione o funcionário.");
+                if (!itemId) return alert("Selecione o IPI no estoque.");
+                if (!issueDate) return alert("Informe a data da entrega/troca.");
+                const employee = (db.state.apiEmployees || []).find((emp) => emp.id === employeeId);
+                if (!employee) return alert("Funcionário não encontrado.");
+                const stockItem = (db.state.items || []).find((i) => i.id === itemId && i.category === "EPI");
+                if (!stockItem) return alert("IPI não encontrado no estoque.");
+                if (qty > Number(stockItem.qty || 0)) return alert(`Saldo insuficiente no estoque do IPI (${stockItem.qty} ${stockItem.unit || "UN"}).`);
+                if (!Array.isArray(db.state.apiIssues)) db.state.apiIssues = [];
+                stockItem.qty = Number(stockItem.qty || 0) - qty;
+                stockItem.updatedAt = nowIso();
+                const record = {
+                    id: uid("aprec"),
+                    employeeId: employee.id,
+                    employeeName: employee.name,
+                    warehouseId: stockItem.warehouseId || employee.warehouseId || "all",
+                    apiName: stockItem.name,
+                    itemId: stockItem.id,
+                    qty,
+                    issueDate: new Date(`${issueDate}T12:00:00`).toISOString(),
+                    notes,
+                    user: auth.currentUser?.user || "sistema",
+                    userName: auth.currentUser?.name || "Sistema",
+                    createdAt: nowIso(),
+                    updatedAt: nowIso()
+                };
+                db.state.apiIssues.push(record);
+                db.addAuditLog("api_issue_registered", {
+                    employeeId: employee.id,
+                    employeeName: employee.name,
+                    apiName: stockItem.name,
+                    qty,
+                    warehouseId: record.warehouseId
+                });
+                await db.save();
+                const dateInput = document.getElementById("api-issue-date");
+                e.target.reset();
+                if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+                ui.renderApiControl();
+            },
+            async deleteApiIssue(recordId) {
+                if (!this.must("canManageStock", "Sem permissão para excluir lançamento de IPI.")) return;
+                const rec = (db.state.apiIssues || []).find((r) => r.id === recordId);
+                if (!rec) return;
+                if (!confirm("Excluir este lançamento de IPI?")) return;
+                db.state.apiIssues = (db.state.apiIssues || []).filter((r) => r.id !== recordId);
+                db.addAuditLog("api_issue_deleted", {
+                    recordId,
+                    employeeName: rec.employeeName,
+                    apiName: rec.apiName,
+                    warehouseId: rec.warehouseId
+                });
+                await db.save();
+                ui.renderApiControl();
+            },
+            downloadApiEmployeeReport() {
+                const employeeId = String(document.getElementById("api-report-employee")?.value || "");
+                if (!employeeId) return alert("Selecione um funcionário para gerar o relatório.");
+                const employee = (db.state.apiEmployees || []).find((emp) => emp.id === employeeId);
+                if (!employee) return alert("Funcionário não encontrado.");
+                const user = auth.currentUser;
+                const canGlobal = user?.role === "admin" || user?.warehouseId === "all";
+                const issues = (db.state.apiIssues || [])
+                    .filter((r) => r.employeeId === employeeId)
+                    .filter((r) => canGlobal || r.warehouseId === "all" || r.warehouseId === user?.warehouseId)
+                    .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
+                if (!issues.length) return alert("Nenhum lançamento encontrado para este funcionário.");
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                let y = this.pdfBrandedTitle(doc, `RELATORIO DE IPI - ${employee.name}`, 10) + 6;
+                doc.setFontSize(11);
+                doc.text(`Funcionario: ${employee.name}`, 14, y); y += 7;
+                doc.text(`Documento/Matricula: ${employee.document || "-"}`, 14, y); y += 7;
+                doc.text(`Funcao: ${employee.roleName || "-"}`, 14, y); y += 10;
+                issues.forEach((r, idx) => {
+                    if (y > 270) {
+                        doc.addPage();
+                        y = 18;
+                    }
+                    const dt = new Date(r.issueDate).toLocaleDateString("pt-BR");
+                    doc.text(`${idx + 1}. ${dt} - ${r.apiName} - Qtd: ${Number(r.qty || 1)}`, 14, y);
+                    y += 6;
+                    if (r.notes) {
+                        const lines = doc.splitTextToSize(`Obs: ${r.notes}`, 180);
+                        doc.text(lines, 18, y);
+                        y += lines.length * 5;
+                    }
+                    y += 1;
+                });
+                doc.save(`relatorio_ipi_${employee.name.replace(/\s+/g, "_").toLowerCase()}.pdf`);
             },
             applyStoredTheme() {
                 const t = localStorage.getItem(THEME_KEY) || "light";
@@ -3571,6 +3944,15 @@
                 customInput.required = show;
                 if (!show) customInput.value = "";
             },
+            toggleEpiExpiryInput(category) {
+                const wrap = document.getElementById("m-epi-expiry-wrap");
+                const input = document.getElementById("m-epi-expiry");
+                if (!wrap || !input) return;
+                const isEpi = String(category || "").toUpperCase() === "EPI";
+                wrap.classList.toggle("hidden", !isEpi);
+                input.required = false;
+                if (!isEpi) input.value = "";
+            },
             async addItem(e) {
                 e.preventDefault();
                 if (!this.must("canManageStock", "Sem permissão para cadastrar materiais.")) return;
@@ -3587,6 +3969,7 @@
                 const category = document.getElementById("m-cat").value;
                 const area = document.getElementById("m-area").value;
                 const code = document.getElementById("m-code").value.trim();
+                const expiryRaw = String(document.getElementById("m-epi-expiry")?.value || "").trim();
                 if (area === "SABESP" && category === "EQUIPAMENTO") {
                     alert("A área SABESP aceita apenas materiais. Equipamentos SABESP não são permitidos.");
                     return;
@@ -3605,6 +3988,7 @@
                     unit,
                     qty: parseInt(document.getElementById("m-qty").value, 10),
                     minQty: parseInt(document.getElementById("m-min").value, 10),
+                    expiryDate: category === "EPI" && expiryRaw ? new Date(`${expiryRaw}T12:00:00`).toISOString() : null,
                     updatedAt: nowIso()
                 };
                 if (!db.state.unitCatalog.includes(unit)) db.state.unitCatalog.push(unit);
@@ -4125,6 +4509,9 @@
                 document.getElementById("report-date-from").addEventListener("change", () => logic.refreshReportPreview());
                 document.getElementById("report-date-to").addEventListener("change", () => logic.refreshReportPreview());
                 document.getElementById("report-user").addEventListener("change", () => logic.refreshReportPreview());
+                document.getElementById("api-report-employee")?.addEventListener("change", () => ui.renderApiControl());
+                const apiIssueDate = document.getElementById("api-issue-date");
+                if (apiIssueDate && !apiIssueDate.value) apiIssueDate.value = new Date().toISOString().slice(0, 10);
                 document.getElementById("btn-force-sync").addEventListener("click", async () => {
                     await db.save();
                     if (remoteSync.isReady) {
