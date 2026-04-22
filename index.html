@@ -2161,14 +2161,32 @@
                     writeSessionUser(fresh);
                 }
             },
-            login(u, p) {
+            async login(u, p) {
                 db.state = normalizeState(db.state);
                 const usernameKey = this.normalizeUsername(u);
-                const pass = String(p || "");
-                let found = db.state.users.find((x) => this.normalizeUsername(x.user) === usernameKey && String(x.pass || "") === pass);
+                const passRaw = String(p || "");
+                const pass = passRaw;
+                const passTrim = passRaw.trim();
+                const findByCredentials = () => db.state.users.find((x) => {
+                    if (this.normalizeUsername(x.user) !== usernameKey) return false;
+                    const candidate = String(x.pass || "");
+                    // Aceita senha exata e também tentativa com espaços acidentais no começo/fim.
+                    return candidate === pass || candidate === passTrim;
+                });
+                let found = findByCredentials();
                 if (!found && !db.state.users.length) {
                     db.state = normalizeState(db.state);
-                    found = db.state.users.find((x) => this.normalizeUsername(x.user) === usernameKey && String(x.pass || "") === pass);
+                    found = findByCredentials();
+                }
+                // Se não encontrou localmente, busca atualização da nuvem e tenta de novo.
+                if (!found && remoteSync.isConfigured() && navigator.onLine) {
+                    try {
+                        await db.refreshFromCloud();
+                        db.state = normalizeState(db.state);
+                        found = findByCredentials();
+                    } catch (_) {
+                        // Mantém login local mesmo se sincronização falhar.
+                    }
                 }
                 if (found) {
                     this.currentUser = found;
@@ -4614,11 +4632,11 @@
                 });
                 startRealtimeSync();
 
-                document.getElementById("login-form").onsubmit = (e) => {
+                document.getElementById("login-form").onsubmit = async (e) => {
                     e.preventDefault();
                     const u = document.getElementById("user").value.trim();
                     const p = document.getElementById("pass").value;
-                    if (!auth.login(u, p)) {
+                    if (!(await auth.login(u, p))) {
                         alert("Acesso inválido.\n\nVerifique usuário e senha com o administrador do sistema.");
                     }
                 };
