@@ -79,13 +79,15 @@ function ensureRootFolder() {
 function defaultState() {
   return {
     version: DEFAULT_VERSION,
-    settings: { systemName: "SANEGESTAO", primaryColor: "#0284c7" },
+    settings: { systemName: "SANEGESTAO", primaryColor: "#0284c7", reportLogoDataUrl: "" },
     users: [],
     warehouses: [],
     items: [],
     orders: [],
     logs: [],
     replenishments: [],
+    suppliers: [],
+    chatMessages: [],
     unitCatalog: ["UN", "M", "KG", "L", "CX", "PCT", "JG", "ROL", "M2", "M3"],
     updatedAt: new Date().toISOString()
   };
@@ -94,13 +96,16 @@ function defaultState() {
 function normalizeState(raw) {
   const state = raw || {};
   state.version = Number(state.version || DEFAULT_VERSION);
-  state.settings = state.settings || { systemName: "SANEGESTAO", primaryColor: "#0284c7" };
+  state.settings = state.settings || { systemName: "SANEGESTAO", primaryColor: "#0284c7", reportLogoDataUrl: "" };
+  if (typeof state.settings.reportLogoDataUrl !== "string") state.settings.reportLogoDataUrl = "";
   state.users = Array.isArray(state.users) ? state.users : [];
   state.warehouses = Array.isArray(state.warehouses) ? state.warehouses : [];
   state.items = Array.isArray(state.items) ? state.items : [];
   state.orders = Array.isArray(state.orders) ? state.orders : [];
   state.logs = Array.isArray(state.logs) ? state.logs : [];
   state.replenishments = Array.isArray(state.replenishments) ? state.replenishments : [];
+  state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
+  state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : [];
   state.unitCatalog = Array.isArray(state.unitCatalog) ? state.unitCatalog : [];
 
   state.items = state.items.map(function (i) {
@@ -152,11 +157,44 @@ function normalizeState(raw) {
       qty: Number(r.qty || 0),
       unit: r.unit || "UN",
       date: r.date || new Date().toISOString(),
+      supplierId: r.supplierId || "",
       user: r.user || "sistema",
       userName: r.userName || "Sistema",
       updatedAt: r.updatedAt || new Date().toISOString()
     };
   });
+
+  state.suppliers = state.suppliers.map(function (s) {
+    return {
+      id: s.id || makeId("sup"),
+      name: String(s.name || "Fornecedor").trim(),
+      doc: String(s.doc || "").trim(),
+      phone: String(s.phone || "").trim(),
+      email: String(s.email || "").trim(),
+      notes: String(s.notes || "").trim(),
+      createdAt: s.createdAt || new Date().toISOString(),
+      updatedAt: s.updatedAt || new Date().toISOString()
+    };
+  });
+
+  state.chatMessages = state.chatMessages.map(function (m) {
+    var text = String(m.text || "").slice(0, 2000);
+    return {
+      id: m.id || makeId("chat"),
+      user: String(m.user || "").trim(),
+      userName: String(m.userName || "Usuário").trim(),
+      role: m.role || "usuario",
+      text: text,
+      createdAt: m.createdAt || new Date().toISOString(),
+      updatedAt: m.updatedAt || m.createdAt || new Date().toISOString()
+    };
+  });
+  state.chatMessages.sort(function (a, b) {
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+  if (state.chatMessages.length > 500) {
+    state.chatMessages = state.chatMessages.slice(state.chatMessages.length - 500);
+  }
 
   state.unitCatalog = uniqueUpper(state.unitCatalog.concat(state.items.map(function (i) { return i.unit; })));
   state.updatedAt = new Date().toISOString();
@@ -247,7 +285,7 @@ function initWarehouseOnce(warehouseId, warehouseName) {
     const id = String(warehouseId || "wh_1");
     const fileName = getWarehouseFileName(id);
     const initial = defaultState();
-    initial.warehouses = [{ id: id, name: String(warehouseName || id), city: "", phone: "" }];
+    initial.warehouses = [{ id: id, name: String(warehouseName || id), city: "", phone: "", notes: "", lat: null, lng: null }];
     const result = getOrCreateFile(folder, fileName, initial);
     return { ok: true, warehouseId: id, created: result.created, fileId: result.file.getId(), fileName: fileName };
   } finally {
