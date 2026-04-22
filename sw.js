@@ -1,11 +1,9 @@
-const CACHE_NAME = "sanegestao-pro-v2";
+const CACHE_NAME = "sanegestao-pro-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./tailwind.css",
   "./sw.js",
-  "./vendor/leaflet/leaflet.css",
-  "./vendor/leaflet/leaflet.js",
   "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
   "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
 ];
@@ -42,6 +40,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
+  const isNavigation = request.mode === "navigate";
 
   event.respondWith(
     caches.match(request).then((cached) => {
@@ -52,7 +51,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned));
           return networkRes;
         })
-        .catch(() => caches.match("./index.html"));
+        .catch(() => (isNavigation ? caches.match("./index.html") : Promise.reject(new Error("Network error"))));
     })
   );
 });

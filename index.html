@@ -1595,7 +1595,8 @@
                 const msg = String(message || "");
                 return msg.includes("ROOT_FOLDER_ID is not defined")
                     || msg.includes("MAIN_DB_FILENAME is not defined")
-                    || msg.includes("getRootFolderId is not defined");
+                    || msg.includes("getRootFolderId is not defined")
+                    || msg.includes("DEFAULT_VERSION is not defined");
             },
             isBlocked() {
                 return Date.now() < this.blockedUntil;
@@ -4151,7 +4152,7 @@
                     const u = document.getElementById("user").value.trim();
                     const p = document.getElementById("pass").value;
                     if (!auth.login(u, p)) {
-                        alert("Acesso inválido.\n\nVerifique usuário/senha.\nNo primeiro acesso use:\nUsuário: Claudinho\nSenha: Bobyemel01");
+                        alert("Acesso inválido.\n\nVerifique usuário e senha com o administrador do sistema.");
                     }
                 };
             } catch (err) {
