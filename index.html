@@ -614,6 +614,57 @@
         @media (max-width: 1024px) {
             #main-app aside { border-right: none; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
             button:hover { transform: none; }
+            #mobile-menu-toggle {
+                position: fixed;
+                top: 0.75rem;
+                left: 0.75rem;
+                z-index: 70;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 44px;
+                height: 44px;
+                border-radius: 0.75rem;
+                background: #0f172a;
+                color: #e2e8f0;
+                border: 1px solid rgba(148, 163, 184, 0.25);
+                box-shadow: 0 8px 20px rgba(2, 6, 23, 0.35);
+            }
+            #main-app #sidebar-dock {
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: min(86vw, 320px);
+                height: 100vh;
+                z-index: 75;
+                transform: translateX(-104%);
+                transition: transform 0.25s ease;
+            }
+            #main-app #sidebar-dock aside {
+                min-height: 100vh;
+            }
+            #mobile-menu-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 65;
+                background: rgba(2, 6, 23, 0.45);
+                backdrop-filter: blur(2px);
+            }
+            #mobile-menu-overlay.hidden {
+                display: none !important;
+            }
+            body.mobile-menu-open #main-app #sidebar-dock {
+                transform: translateX(0);
+            }
+            body.mobile-menu-open #mobile-menu-overlay.hidden {
+                display: block !important;
+            }
+            #main-app > main {
+                padding-top: 3.4rem;
+            }
+            body.mobile-menu-open {
+                overflow: hidden;
+            }
         }
 
         html.theme-dark {
@@ -770,7 +821,14 @@
         </div>
     </div>
 
+    <button type="button" id="mobile-menu-toggle" class="hidden lg:hidden" aria-label="Abrir menu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </button>
+
     <div id="main-app" class="hidden flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div id="mobile-menu-overlay" class="hidden lg:hidden"></div>
         <div id="sidebar-dock" class="w-full shrink-0 flex flex-col min-h-0" title="Passe o mouse na lateral para abrir o menu">
             <aside class="bg-slate-900 text-white w-full lg:w-64 flex flex-col shrink-0 min-h-0 flex-1">
             <div class="p-6 text-center border-b border-slate-800">
@@ -1941,9 +1999,19 @@
                 if (!this.isConfigured() || !navigator.onLine) return null;
                 try {
                     const fullList = warehouses?.length ? warehouses : [{ id: "wh_1", name: "Armazém Principal" }];
-                    // Sempre baixa todos os armazéns para manter visão consistente
-                    // entre perfis e evitar "sumiço" de dados por filtro de sync.
-                    const list = fullList;
+                    let list = fullList;
+                    // Se houver armazéns novos em database.json, incorpora para puxar todos os JSONs.
+                    try {
+                        const mainData = await this.pullMainDatabase();
+                        const mainWh = Array.isArray(mainData?.warehouses) ? mainData.warehouses : [];
+                        const byId = new Map();
+                        [...fullList, ...mainWh].forEach((w) => {
+                            if (w?.id) byId.set(w.id, { id: w.id, name: w.name || w.id });
+                        });
+                        list = Array.from(byId.values());
+                    } catch (_) {
+                        // Segue com a lista local caso pullMainDatabase falhe.
+                    }
                     if (!list.length) throw new Error("Usuário sem armazém vinculado para sincronização.");
                     const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], suppliers: [], chatMessages: [], apiEmployees: [], apiIssues: [], settings: {} });
                     for (const wh of list) {
@@ -2178,6 +2246,21 @@
             _whMarkersLayer: null,
             _whMarkerById: {},
             _whMapGen: 0,
+            toggleMobileMenu() {
+                if (window.innerWidth >= 1024) return;
+                document.body.classList.toggle("mobile-menu-open");
+            },
+            closeMobileMenu() {
+                document.body.classList.remove("mobile-menu-open");
+            },
+            syncMobileMenuState() {
+                const btn = document.getElementById("mobile-menu-toggle");
+                const overlay = document.getElementById("mobile-menu-overlay");
+                const showMobile = window.innerWidth < 1024 && !!auth.currentUser;
+                if (btn) btn.classList.toggle("hidden", !showMobile);
+                if (overlay) overlay.classList.toggle("hidden", !showMobile || !document.body.classList.contains("mobile-menu-open"));
+                if (!showMobile) this.closeMobileMenu();
+            },
             isBasicUser() {
                 return auth.currentUser?.role === "usuario";
             },
@@ -2210,6 +2293,7 @@
                 document.querySelectorAll(".tab-content").forEach((t) => t.classList.remove("active"));
                 const next = document.getElementById("tab-" + tab);
                 if (next) next.classList.add("active");
+                this.closeMobileMenu();
                 const title = btn ? btn.innerText.replace(/\s+/g, " ").trim() : "Painel";
                 const vt = document.getElementById("view-title");
                 if (vt) {
@@ -2337,6 +2421,7 @@
                 this.applySettings();
                 logic.applyStoredTheme();
                 logic.updateThemeToggleUi();
+                this.syncMobileMenuState();
                 this.stockScope = "all";
                 this.renderAll();
                 db.refreshFromCloud().catch(() => {});
@@ -4455,19 +4540,12 @@
         }
 
         let syncTimerId = null;
-        let lastGeneralSyncAt = 0;
         function startRealtimeSync() {
             if (syncTimerId) clearInterval(syncTimerId);
             syncTimerId = setInterval(() => {
-                const now = Date.now();
-                const isRequestsTab = ui.currentTab === "requests";
-                const chatPanel = document.getElementById("team-chat-panel");
-                const isChatOpen = chatPanel && !chatPanel.classList.contains("hidden");
-                const shouldRun = isRequestsTab || isChatOpen || (now - lastGeneralSyncAt >= 15000);
-                if (!shouldRun) return;
-                lastGeneralSyncAt = now;
+                if (!auth.currentUser || !navigator.onLine) return;
                 db.refreshFromCloud();
-            }, 5000);
+            }, 3000);
         }
 
         window.onload = async () => {
@@ -4521,6 +4599,9 @@
                     }
                 });
                 document.getElementById("btn-remote-connect")?.addEventListener("click", () => remoteSync.requestAuth());
+                document.getElementById("mobile-menu-toggle")?.addEventListener("click", () => ui.toggleMobileMenu());
+                document.getElementById("mobile-menu-overlay")?.addEventListener("click", () => ui.closeMobileMenu());
+                window.addEventListener("resize", () => ui.syncMobileMenuState());
                 const tcf = document.getElementById("team-chat-form");
                 if (tcf) tcf.addEventListener("submit", (ev) => logic.sendTeamChatMessage(ev));
                 document.getElementById("team-chat-fab")?.addEventListener("click", () => ui.toggleTeamChatPanel());
