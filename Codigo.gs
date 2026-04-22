@@ -94,6 +94,8 @@ function defaultState() {
     replenishments: [],
     suppliers: [],
     chatMessages: [],
+    apiEmployees: [],
+    apiIssues: [],
     unitCatalog: ["UN", "M", "KG", "L", "CX", "PCT", "JG", "ROL", "M2", "M3"],
     updatedAt: new Date().toISOString()
   };
@@ -112,6 +114,8 @@ function normalizeState(raw) {
   state.replenishments = Array.isArray(state.replenishments) ? state.replenishments : [];
   state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
   state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : [];
+  state.apiEmployees = Array.isArray(state.apiEmployees) ? state.apiEmployees : [];
+  state.apiIssues = Array.isArray(state.apiIssues) ? state.apiIssues : [];
   state.unitCatalog = Array.isArray(state.unitCatalog) ? state.unitCatalog : [];
 
   state.items = state.items.map(function (i) {
@@ -125,6 +129,7 @@ function normalizeState(raw) {
       warehouseId: i.warehouseId || "wh_1",
       qty: Number(i.qty || 0),
       minQty: Number(i.minQty || 0),
+      expiryDate: i.expiryDate || null,
       updatedAt: i.updatedAt || new Date().toISOString()
     };
   });
@@ -164,6 +169,7 @@ function normalizeState(raw) {
       unit: r.unit || "UN",
       date: r.date || new Date().toISOString(),
       supplierId: r.supplierId || "",
+      expiryDate: r.expiryDate || null,
       user: r.user || "sistema",
       userName: r.userName || "Sistema",
       updatedAt: r.updatedAt || new Date().toISOString()
@@ -196,12 +202,45 @@ function normalizeState(raw) {
     };
   });
 
+  state.apiEmployees = state.apiEmployees.map(function (e) {
+    return {
+      id: e.id || makeId("apemp"),
+      name: String(e.name || "Funcionario").trim(),
+      document: String(e.document || "").trim(),
+      roleName: String(e.roleName || "").trim(),
+      warehouseId: String(e.warehouseId || "all"),
+      active: e.active !== false,
+      createdAt: e.createdAt || new Date().toISOString(),
+      updatedAt: e.updatedAt || e.createdAt || new Date().toISOString()
+    };
+  });
+
+  state.apiIssues = state.apiIssues.map(function (r) {
+    return {
+      id: r.id || makeId("aprec"),
+      employeeId: String(r.employeeId || "").trim(),
+      employeeName: String(r.employeeName || "").trim(),
+      warehouseId: String(r.warehouseId || "all"),
+      apiName: String(r.apiName || "IPI").trim(),
+      itemId: String(r.itemId || "").trim(),
+      qty: Math.max(1, Number(r.qty || 1)),
+      issueDate: r.issueDate || new Date().toISOString(),
+      notes: String(r.notes || "").trim(),
+      user: String(r.user || "").trim(),
+      userName: String(r.userName || "").trim(),
+      createdAt: r.createdAt || new Date().toISOString(),
+      updatedAt: r.updatedAt || r.createdAt || new Date().toISOString()
+    };
+  });
+
   state.chatMessages.sort(function (a, b) {
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
-  if (state.chatMessages.length > 500) {
-    state.chatMessages = state.chatMessages.slice(state.chatMessages.length - 500);
-  }
+  if (state.chatMessages.length > 500) state.chatMessages = state.chatMessages.slice(state.chatMessages.length - 500);
+
+  state.apiIssues.sort(function (a, b) {
+    return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime();
+  });
 
   state.unitCatalog = uniqueUpper(state.unitCatalog.concat(state.items.map(function (i) { return i.unit; })));
   state.updatedAt = new Date().toISOString();
@@ -291,22 +330,8 @@ function ensureWarehouseState(state, warehouseId, warehouseName) {
   const existing = normalized.warehouses.find(function (w) {
     return String(w.id || "") === id;
   });
-
-  if (!existing) {
-    normalized.warehouses.unshift({ id: id, name: name, city: "", phone: "", notes: "", lat: null, lng: null });
-  } else if (!existing.name) {
-    existing.name = name;
-  }
-
-  normalized.items = (normalized.items || []).map(function (i) {
-    return { ...i, warehouseId: i.warehouseId || id };
-  });
-  normalized.orders = (normalized.orders || []).map(function (o) {
-    return { ...o, warehouseId: o.warehouseId || id };
-  });
-  normalized.replenishments = (normalized.replenishments || []).map(function (r) {
-    return { ...r, warehouseId: r.warehouseId || id };
-  });
+  if (!existing) normalized.warehouses.unshift({ id: id, name: name, city: "", phone: "", notes: "", lat: null, lng: null });
+  if (existing && !existing.name) existing.name = name;
   return normalized;
 }
 
@@ -355,10 +380,6 @@ function makeId(prefix) {
   return String(prefix || "id") + "_" + Utilities.getUuid().replace(/-/g, "").slice(0, 10);
 }
 
-/**
- * Execucao manual no editor do Apps Script para criar o database.json na pasta.
- * Use esta funcao quando quiser forcar a criacao sem passar pelo frontend.
- */
 function criarDatabaseJsonAgora() {
   const result = initMainDatabase(getMainDbFilename());
   const folder = ensureRootFolder();
