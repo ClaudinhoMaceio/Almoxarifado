@@ -2016,7 +2016,8 @@
                     const merged = normalizeState({ users: [], warehouses: [], items: [], orders: [], logs: [], replenishments: [], suppliers: [], chatMessages: [], apiEmployees: [], apiIssues: [], settings: {} });
                     for (const wh of list) {
                         const result = await this.get("pull", wh.id);
-                        if (result?.ok && result.data) this.mergeWarehousePayload(merged, result.data);
+                        if (!result?.ok) throw new Error(result?.error || `Falha ao baixar armazém ${wh.id}.`);
+                        if (result.data) this.mergeWarehousePayload(merged, result.data);
                     }
                     this.isReady = true;
                     this.clearError();
