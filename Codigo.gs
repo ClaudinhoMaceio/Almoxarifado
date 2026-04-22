@@ -1,11 +1,11 @@
-const ROOT_FOLDER_ID = "1dQ47OF8nmOMPnBGRE1IeTSZ-WR4lo-DG";
+const ROOT_FOLDER_ID = "1XrxLScRhIQ7iNciyWkoAHVaDFIhKYmUO";
 const MAIN_DB_FILENAME = "database.json";
 const DEFAULT_VERSION = 1;
 
 function getRootFolderId() {
   return typeof ROOT_FOLDER_ID !== "undefined" && ROOT_FOLDER_ID
     ? String(ROOT_FOLDER_ID)
-    : "1dQ47OF8nmOMPnBGRE1IeTSZ-WR4lo-DG";
+    : "1XrxLScRhIQ7iNciyWkoAHVaDFIhKYmUO";
 }
 
 function getMainDbFilename() {

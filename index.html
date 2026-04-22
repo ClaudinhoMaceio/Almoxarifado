@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0284c7">
     <title>SaneGestão Pro - Controle de Almoxarifado</title>
     <link rel="stylesheet" href="./tailwind.css">
-    <link rel="stylesheet" href="./vendor/leaflet/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -1087,17 +1087,11 @@
         </div>
     </div>
 
-    <script src="./vendor/leaflet/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const APP_DB_PATH = "almoxarifado/database.json";
-        const REMOTE_DATA_FOLDER_URL = (() => {
-            try {
-                return atob("aHR0cHM6Ly9kcml2ZS5nb29nbGUuY29tL2RyaXZlL2ZvbGRlcnMvMWRRNDdPRjhubU9NUG5CR1JFMUllVFNaLVdSNGxvLURHP3VzcD1kcml2ZV9saW5r");
-            } catch (_) {
-                return "";
-            }
-        })();
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwSSYq-BNnsCSszXLSYr8YmIbcjVajtGwGjVvSiCX0VtDst3eDehvZKfBk5yt7ZSztR/exec";
+        const REMOTE_DATA_FOLDER_URL = "https://drive.google.com/drive/folders/1XrxLScRhIQ7iNciyWkoAHVaDFIhKYmUO?usp=drive_link";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx72pTwOg99IDgWmFNB4SlLAkMTpCUSNWarMWHLbrfoe9C1NtFJYeZouq1vFmJOSrrC/exec";
         const STORAGE_KEY = "sanegestao_db";
         const THEME_KEY = "sanegestao_theme";
         const SESSION_KEY = "session_user";
@@ -1595,31 +1589,53 @@
             lastError: "",
             storageMode: "warehouse",
             deployWarningShown: false,
+            blockedUntil: 0,
+            blockReason: "",
+            isBackendOutdatedError(message) {
+                const msg = String(message || "");
+                return msg.includes("ROOT_FOLDER_ID is not defined")
+                    || msg.includes("MAIN_DB_FILENAME is not defined")
+                    || msg.includes("getRootFolderId is not defined");
+            },
+            isBlocked() {
+                return Date.now() < this.blockedUntil;
+            },
+            blockTemporarily(ms, reason) {
+                this.blockedUntil = Date.now() + ms;
+                this.blockReason = reason || "Falha temporária de sincronização.";
+            },
             normalizeBackendError(message) {
                 const msg = String(message || "");
-                if (msg.includes("ROOT_FOLDER_ID is not defined") || msg.includes("MAIN_DB_FILENAME is not defined")) {
+                if (this.isBackendOutdatedError(msg)) {
                     return "O serviço publicado do conector está desatualizado. Publique uma nova versão do aplicativo web no painel de administração do servidor.";
                 }
                 return msg;
             },
             warnDeployIfNeeded(message) {
                 const msg = String(message || "");
-                const shouldWarn = msg.includes("ROOT_FOLDER_ID is not defined") || msg.includes("MAIN_DB_FILENAME is not defined");
+                const shouldWarn = this.isBackendOutdatedError(msg);
                 if (!shouldWarn || this.deployWarningShown) return;
                 this.deployWarningShown = true;
                 alert("A sincronização na nuvem está usando uma versão antiga do serviço.\n\nAção necessária:\n1) Abrir o painel do conector web\n2) Publicar nova versão do aplicativo\n3) Atualizar a URL no sistema se necessário.");
             },
             isConfigured() {
                 if (IS_FILE_PROTOCOL) return false;
+                if (this.isBlocked()) return false;
                 return APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("COLE_AQUI_");
             },
             setError(message) {
                 const normalized = this.normalizeBackendError(message);
                 this.lastError = normalized || "Erro desconhecido de sincronização.";
                 this.warnDeployIfNeeded(message);
+                if (this.isBackendOutdatedError(message)) {
+                    // Evita loop infinito de tentativas quando o backend está em versão antiga.
+                    this.blockTemporarily(10 * 60 * 1000, this.lastError);
+                }
             },
             clearError() {
                 this.lastError = "";
+                this.blockedUntil = 0;
+                this.blockReason = "";
             },
             async parseResponse(response) {
                 const contentType = (response.headers.get("content-type") || "").toLowerCase();
@@ -1676,6 +1692,22 @@
             },
             async ensureMainDatabase() {
                 return this.post({ action: "initMainDatabase", fileName: "database.json" });
+            },
+            async pullMainDatabase() {
+                const result = await this.get("pullMainDatabase", "wh_1");
+                if (!result?.ok || !result?.data) throw new Error(result?.error || "Falha ao baixar database.json.");
+                return normalizeState(result.data);
+            },
+            async pushMainDatabase(state) {
+                const initResp = await this.ensureMainDatabase();
+                if (!initResp?.ok) throw new Error(initResp?.error || "Falha ao preparar database.json.");
+                const pushResp = await this.post({
+                    action: "pushMainDatabase",
+                    fileName: "database.json",
+                    data: normalizeState(state)
+                });
+                if (!pushResp?.ok) throw new Error(pushResp?.error || "Falha ao salvar database.json.");
+                return true;
             },
             buildWarehousePayload(fullState, warehouse) {
                 return {
@@ -1754,7 +1786,9 @@
                 }
             },
             async requestAuth() {
-                if (!this.isConfigured()) {
+                this.deployWarningShown = false;
+                this.clearError();
+                if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("COLE_AQUI_")) {
                     if (IS_FILE_PROTOCOL) {
                         alert("Você abriu o sistema como arquivo local (file://). Inicie um servidor local http://localhost para habilitar a sincronização remota.");
                         return;
@@ -1790,11 +1824,21 @@
                     ui.updateCloudStatus("remote");
                     return true;
                 } catch (err) {
-                    this.isReady = false;
-                    this.setError(err.message);
-                    ui.updateCloudStatus("local");
-                    console.error("Erro ao enviar para o aplicativo web:", err);
-                    return false;
+                    try {
+                        // Fallback: conector legado baseado em database.json único.
+                        await this.pushMainDatabase(state);
+                        this.isReady = true;
+                        this.clearError();
+                        ui.updateCloudStatus("remote");
+                        return true;
+                    } catch (fallbackErr) {
+                        this.isReady = false;
+                        this.setError(fallbackErr.message || err.message);
+                        ui.updateCloudStatus("local");
+                        console.error("Erro ao enviar para o aplicativo web:", err);
+                        console.error("Erro no fallback database.json:", fallbackErr);
+                        return false;
+                    }
                 }
             },
             async pullAll(warehouses) {
@@ -1816,11 +1860,21 @@
                     ui.updateCloudStatus("remote");
                     return normalizeState(merged);
                 } catch (err) {
-                    this.isReady = false;
-                    this.setError(err.message);
-                    ui.updateCloudStatus("local");
-                    console.error("Erro ao baixar do aplicativo web:", err);
-                    return null;
+                    try {
+                        // Fallback: leitura de database.json único no Google Drive.
+                        const mainData = await this.pullMainDatabase();
+                        this.isReady = true;
+                        this.clearError();
+                        ui.updateCloudStatus("remote");
+                        return normalizeState(mainData);
+                    } catch (fallbackErr) {
+                        this.isReady = false;
+                        this.setError(fallbackErr.message || err.message);
+                        ui.updateCloudStatus("local");
+                        console.error("Erro ao baixar do aplicativo web:", err);
+                        console.error("Erro no fallback database.json:", fallbackErr);
+                        return null;
+                    }
                 }
             }
         };
@@ -1996,10 +2050,10 @@
         function sleepMs(ms) {
             return new Promise((r) => setTimeout(r, ms));
         }
-        /** Mapa Leaflet incluído no projeto (pasta vendor/leaflet), sem CDN. */
+        /** Mapa Leaflet com fallback automático (vendor local -> CDN). */
         function ensureLeaflet() {
             if (typeof L !== "undefined" && L.map) return Promise.resolve();
-            return Promise.reject(new Error("Biblioteca de mapa não carregada. Verifique se a pasta vendor/leaflet existe ao lado do index.html."));
+            return Promise.reject(new Error("Biblioteca Leaflet não carregada. Verifique conexão de internet para carregar o CDN."));
         }
         function animateStatEl(el, from, to, durationMs) {
             if (!el) return;
@@ -2478,7 +2532,7 @@
                 document.getElementById("modal").classList.remove("flex");
             },
             toggleTeamChatPanel() {
-                if (!auth.currentUser || !canAccessTeamChat(auth.currentUser)) return;
+                if (!auth.currentUser) return;
                 const panel = document.getElementById("team-chat-panel");
                 if (!panel) return;
                 const willOpen = panel.classList.contains("hidden");
@@ -2496,7 +2550,7 @@
                 const root = document.getElementById("team-chat-root");
                 const box = document.getElementById("team-chat-messages");
                 if (!root || !box) return;
-                const can = canAccessTeamChat(auth.currentUser);
+                const can = !!auth.currentUser;
                 root.classList.toggle("hidden", !can);
                 if (!can) return;
                 const list = [...(db.state.chatMessages || [])].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -3103,10 +3157,7 @@
             },
             async sendTeamChatMessage(e) {
                 e.preventDefault();
-                if (!canAccessTeamChat(auth.currentUser)) {
-                    alert("O administrador não liberou o bate-papo da equipe para o seu usuário.");
-                    return;
-                }
+                if (!auth.currentUser) return;
                 const input = document.getElementById("team-chat-input");
                 if (!input) return;
                 const text = String(input.value || "").trim();
